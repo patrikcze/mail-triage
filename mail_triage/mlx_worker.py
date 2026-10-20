@@ -19,6 +19,11 @@ from privacy import install_network_guard  # noqa: E402
 
 install_network_guard()
 MAX_LINE = 4 * 1024 * 1024
+# MLX keeps freed GPU buffers for reuse. Every email has a different length, so they are almost
+# never reused and, unlimited, the cache grew to 20+ GB after ~100 emails while the model needs
+# 0.8 GB (1.6 GB peak). A small cache keeps the worker at ~1 GB with no measurable slowdown.
+CACHE_LIMIT = 256 * 1024 * 1024
+CLEAR_EVERY = 100
 
 
 def send(**fields):
@@ -31,14 +36,20 @@ def main():
         send(type="error", message="checkpoint must be an existing absolute folder")
         return
     try:
+        import mlx.core as mx
         import laya_mlx
+        mx.set_cache_limit(CACHE_LIMIT)
         agent = laya_mlx.load(checkpoint, dtype="float16", device="gpu", batch_size=16,
                               compile=False, cache_prompts=False)
     except Exception as exc:
         send(type="error", message=f"Laya load failed: {type(exc).__name__}")
         return
     send(type="ready")
+    handled = 0
     while True:
+        handled += 1
+        if handled % CLEAR_EVERY == 0:
+            mx.clear_cache()
         line = sys.stdin.buffer.readline(MAX_LINE + 1)
         if not line:
             return

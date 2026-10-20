@@ -59,6 +59,15 @@ class NetworkGuardTest(unittest.TestCase):
         self.assertLess(worker.index("install_network_guard()"), worker.index("import laya_mlx"))
 
 
+class ResourceTest(unittest.TestCase):
+    def test_mlx_worker_bounds_gpu_cache(self):
+        # Regression: an unbounded MLX buffer cache grew past 30 GB on a real inbox.
+        worker = (PACKAGE / "mlx_worker.py").read_text()
+        self.assertIn("mx.set_cache_limit(CACHE_LIMIT)", worker)
+        self.assertLess(worker.index("set_cache_limit"), worker.index("laya_mlx.load("))
+        self.assertIn("mx.clear_cache()", worker)
+
+
 class NoDeletionTest(unittest.TestCase):
     def test_no_code_can_delete_or_trash_mail(self):
         forbidden = re.compile(r"\.(delete|trash|expunge)\(|deleteMessage|\bdelete\s*\(|junk mail status|"
