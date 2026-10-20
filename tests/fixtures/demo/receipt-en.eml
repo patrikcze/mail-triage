@@ -1,0 +1,12 @@
+From: Cloud Store <no_reply@store.example.com>
+To: Demo User <demo.user@example.org>
+Subject: Your receipt #MX-1234
+Date: Thu, 01 Oct 2026 14:00:00 +0000
+Message-ID: <receipt-en@fixtures.mail-triage.test>
+List-Unsubscribe: <mailto:unsubscribe@store.example.com>
+Precedence: bulk
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+MIME-Version: 1.0
+
+Receipt. Order MX-1234. Storage plan 50 GB  $0.99. Billed to card ending 0000.

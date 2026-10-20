@@ -1,0 +1,189 @@
+# Mail Triage configuration
+# ------------------------
+# `setup` copies this file to your data folder as config.toml. Edit that copy; anything you
+# leave out falls back to the values below. Lines starting with # are comments.
+# After editing run:  ./triage doctor   (checks the file)  and  ./triage scan --rescan-changed
+
+# ---------------------------------------------------------------------------------------------
+# Categories: what the model chooses between, what each one means for you, and where matching
+# mail will be moved once moving is switched on (not implemented yet — today it is a preview).
+#
+#   name         short id, letters/digits/_ only
+#   description  plain-language hint for the model; this text is what Laya reads
+#   action       keep   = it is for you
+#                review = show it to me, do not decide
+#                junk   = promo, marketing, spam … (only when the model is "highly likely" sure)
+#   folder       future destination, inside the same mail account ("" = stays in the inbox)
+#   coarse       personal | transactional | marketing — which broad bucket the multilingual
+#                model (non-English mail) maps to this category; the first category of each
+#                bucket receives it. "" = only the English model can pick this category.
+#
+# You may add, remove or rename categories. Keep at least one keep and one junk category.
+# ---------------------------------------------------------------------------------------------
+
+[[categories]]
+name = "personal"
+description = "written personally to me by someone I know"
+action = "keep"
+folder = ""
+coarse = "personal"
+
+[[categories]]
+name = "work"
+description = "work or business conversation addressed to me"
+action = "keep"
+folder = ""
+coarse = ""
+
+[[categories]]
+name = "transactional"
+description = "receipt, order, shipping, bill, booking, password or security code"
+action = "keep"
+folder = ""
+coarse = "transactional"
+
+[[categories]]
+name = "notification"
+description = "automated social or app notification"
+action = "keep"
+folder = ""
+coarse = ""
+
+[[categories]]
+name = "newsletter"
+description = "bulk newsletter or digest"
+action = "junk"
+folder = "Laya/Newsletters"
+coarse = ""
+
+[[categories]]
+name = "promotion"
+description = "advertisement, sale, discount or marketing offer"
+action = "junk"
+folder = "Laya/Promotions"
+coarse = "marketing"
+
+[[categories]]
+name = "spam"
+description = "unsolicited junk, scam or phishing"
+action = "junk"
+folder = "Laya/Spam"
+coarse = ""
+
+# Example of your own category (remove the leading # to enable it):
+# [[categories]]
+# name = "invoices"
+# description = "invoice or bill that I have to pay"
+# action = "keep"
+# folder = "Finance/Invoices"
+# coarse = ""
+
+# ---------------------------------------------------------------------------------------------
+# Rules: decide instantly, without the model, when an email matches. First match wins.
+# Matchers (use one or more; all given matchers must match):
+#   sender   exact address               "newsletter@shop.example.cz"
+#   domain   sender domain + subdomains  "shop.example.cz"
+#   subject  text the subject contains   "Faktura"            (case-insensitive)
+#   subject_regex  Python regular expression on the subject
+#   header   "Header-Name: text"         "List-Id: shop.example.cz"    (needs the full message)
+# category   one of the category names above
+# ---------------------------------------------------------------------------------------------
+
+# [[rules]]
+# name = "family is always personal"
+# domain = "family-domain.cz"
+# category = "personal"
+
+# [[rules]]
+# name = "shop newsletters"
+# sender = "news@shop.example.cz"
+# category = "promotion"
+
+# ---------------------------------------------------------------------------------------------
+# Model: which Laya runs and how it is asked.
+# ---------------------------------------------------------------------------------------------
+[model]
+# auto      = Laya MLX on Apple Silicon if installed, otherwise a local llama.cpp server
+# mlx       = Laya MLX (Apple Silicon Mac); `setup` downloads it
+# systemone = any local server with the /v1/systemone API, e.g. llama.cpp:
+#             llama serve -hf ggml-org/Laya-GGUF:Q8_0 --port 8080
+backend = "auto"
+# Softens (>1) or sharpens (<1) the model's probabilities before the policy uses them.
+temperature = 1.0
+# Characters of the email body the model reads (subject and sender are always included).
+body_chars = 3000
+
+[model.mlx]
+english = "english-mlx"
+# Non-English mail goes to this model. "" = read everything with the English model.
+multilingual = "multilingual-mlx"
+
+[model.systemone]
+# Must be on this computer (127.0.0.1 / localhost). Remote servers are refused.
+url = "http://127.0.0.1:8080"
+model = ""                    # only for servers that host several models
+# Optional second local server for non-English mail, e.g.:
+#   llama serve -hf mys/laya-multilingual-GGUF:Q8_0 --port 8081
+multilingual_url = ""
+multilingual_model = ""
+timeout_seconds = 60
+
+# ---------------------------------------------------------------------------------------------
+# Instructions: the questions Laya answers about every email. Rephrase to improve detection.
+# ---------------------------------------------------------------------------------------------
+[instructions]
+kind = "What kind of email is this?"
+is_marketing = "Is this email promotional marketing, advertising, a newsletter or a sales offer?"
+is_spam = "Is this email unsolicited spam or bulk marketing?"
+is_phishing = "Is this email a phishing or scam attempt to steal money, credentials, or personal data?"
+
+# ---------------------------------------------------------------------------------------------
+# Policy: how the model's answer and the email headers become keep / review / junk.
+# ---------------------------------------------------------------------------------------------
+[policy]
+junk_threshold = 0.90         # "highly likely" junk
+review_threshold = 0.70       # "likely" junk → review
+review_folder = "Laya/Review"
+# Only this category is kept as "scam" when the sender is signed and offers unsubscribe;
+# otherwise such mail is relabelled as the best other junk category.
+scam_category = "spam"
+
+[policy.weights]              # log-odds added when an email has this evidence
+list_unsubscribe = 1.5
+bulk = 1.0
+esp = 1.0
+noreply = 0.5
+automated = 0.3
+auth_fail = 0.8
+commercial_marker = 2.0       # Czech "(OS)" = legally declared commercial message
+conversation = -2.5           # a reply in a thread without bulk headers
+transactional = -4.0          # receipts, orders, payments, codes, security alerts
+notice = -4.0                 # contracts, terms, account actions
+account_sender = -2.0         # accounts@ / billing@ / payments@ … senders
+personal = -1.0               # model is fairly sure it is personal/work
+
+# ---------------------------------------------------------------------------------------------
+# Learning: reuse earlier decisions for senders that were always classified the same way.
+# ---------------------------------------------------------------------------------------------
+[learning]
+enabled = true
+min_samples = 5               # decisions needed before a sender is trusted
+agreement = 0.9               # share of those decisions that must agree
+recheck_every = 10            # still ask the model every Nth time, to notice changes
+
+# ---------------------------------------------------------------------------------------------
+# Privacy
+# ---------------------------------------------------------------------------------------------
+[privacy]
+store_subjects = true         # false = the history keeps only senders, never subjects
+console = "redacted"          # full | redacted | counts — what scan prints to the terminal
+retention_days = 365          # older history is deleted automatically (0 = keep forever)
+
+# ---------------------------------------------------------------------------------------------
+# Actions (future): moving mail is NOT implemented yet. Deleting mail is never possible.
+# ---------------------------------------------------------------------------------------------
+[actions]
+enabled = false
+allowed_root = "Laya/"        # moves will only ever go to folders under this prefix …
+also_allowed = []             # … or to these exact folders, e.g. ["Finance/Invoices"]
+forbidden = ["Trash", "Deleted Messages", "Deleted Items", "Koš", "Junk", "Spam", "Bin"]

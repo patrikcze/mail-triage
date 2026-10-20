@@ -1,0 +1,11 @@
+From: Accounts <noreply-accounts@identity.example.com>
+To: Demo User <demo.user@example.org>
+Subject: Security alert: new sign-in
+Date: Thu, 01 Oct 2026 15:00:00 +0000
+Message-ID: <security-en@fixtures.mail-triage.test>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+We noticed a new sign-in to your account from a Mac. If this was you, no acti=
+on is needed.

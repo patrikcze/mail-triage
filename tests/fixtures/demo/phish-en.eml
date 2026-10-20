@@ -1,0 +1,11 @@
+From: Security Team <support@paypa1-verify.example>
+To: Demo User <demo.user@example.org>
+Subject: Urgent: your account is suspended
+Date: Thu, 01 Oct 2026 17:00:00 +0000
+Message-ID: <phish-en@fixtures.mail-triage.test>
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+Dear customer, verify your password within 24 hours at http://paypa1-verify.e=
+xample or your account will be closed.

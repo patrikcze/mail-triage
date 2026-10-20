@@ -1,0 +1,26 @@
+From: Gadgets <deals@gadgets.example.com>
+To: Demo User <demo.user@example.org>
+Subject: Deal of the day #5: headphones -40%
+Date: Fri, 02 Oct 2026 03:00:00 +0000
+Message-ID: <repeat-5@fixtures.mail-triage.test>
+List-Unsubscribe: <mailto:unsubscribe@gadgets.example.com>
+Precedence: bulk
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============8367781000349540736=="
+
+--===============8367781000349540736==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+This message needs HTML.
+
+--===============8367781000349540736==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body><p>Today's deal: wireless headphones at 40% off. Limited stock. U=
+nsubscribe anytime.</p></body></html>
+
+--===============8367781000349540736==--

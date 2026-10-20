@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+# Never commit personal data: history, reports and exported mail stay out of Git.
+*.sqlite
+*.sqlite-*
+reports/
+config.toml
+*.eml
+!tests/fixtures/**/*.eml
+*.mbox

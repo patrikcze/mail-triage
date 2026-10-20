@@ -1,0 +1,4 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+# Test emails must keep their exact bytes.
+tests/fixtures/** -text

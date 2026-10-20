@@ -1,0 +1,26 @@
+From: MegaShop <news@megashop.example.com>
+To: Demo User <demo.user@example.org>
+Subject: -50% on everything this weekend only!
+Date: Thu, 01 Oct 2026 10:00:00 +0000
+Message-ID: <promo-en@fixtures.mail-triage.test>
+List-Unsubscribe: <mailto:unsubscribe@megashop.example.com>
+Precedence: bulk
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============7771981497594951808=="
+
+--===============7771981497594951808==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 7bit
+
+This message needs HTML.
+
+--===============7771981497594951808==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body><p>Huge sale! Shop now and save up to 50% on shoes, jackets and m=
+ore. Click to unsubscribe.</p></body></html>
+
+--===============7771981497594951808==--

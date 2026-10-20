@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mail-triage"
+version = "1.0.0"
+description = "Local email triage with Laya decision models: for you vs. promo, marketing and spam. Nothing leaves your computer."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+# The core is standard-library only. Laya MLX runs in its own venv created by `triage setup`;
+# llama.cpp/Ollama run as separate local servers.
+dependencies = []
+
+[project.scripts]
+mail-triage = "mail_triage.cli:main"
+
+[tool.setuptools]
+packages = ["mail_triage", "mail_triage.backends", "mail_triage.connectors"]
+
+[tool.setuptools.package-data]
+mail_triage = ["default_config.toml"]
