@@ -122,9 +122,11 @@ Moving is off until you switch it on. Set `enabled = true` under `[actions]` in 
 Mail carries out the moves in the background (its activity window shows "Moving messages")
 and can be slow until it is done. Let it finish before running `apply` or `undo` again. A
 folder Mail cannot create in time is skipped and reported; run `apply` again later for it.
-**Exchange accounts:** Mail may refuse to create folders there by script. Create `Laya` with
-`Newsletters`, `Promotions` and `Review` inside it once yourself (in Mail or Outlook), and
-`apply` will use them.
+**Exchange accounts:** Apple Mail cannot create subfolders on Exchange by script (it scripts
+only POP, IMAP and iCloud accounts). Either create `Laya` with `Newsletters`, `Promotions` and
+`Review` inside it once in Outlook on the web, and `apply` uses them, or set
+`exchange_flat_separator = "-"` under `[actions]` to let `apply` create top-level folders
+`Laya-Newsletters`, … there instead.
 
 - Missing folders (`Laya/`, `Laya/Promotions`, …) are created inside the same mail account, so
   they sync to your mail server like any folder you create yourself.

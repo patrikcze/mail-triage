@@ -311,7 +311,8 @@ def cmd_apply(args) -> int:
         run = store.start_run(f"apply:{connector.name}")
         counts = Counter()
         try:
-            actions.apply(store, connector, plans, run, counts=counts)
+            actions.apply(store, connector, plans, run, counts=counts,
+                          flat_separator=config.actions["exchange_flat_separator"])
         finally:
             store.finish_run(run, dict(counts))
         notes = [f"created {counts['folders_created']} folders"] if counts["folders_created"] else []

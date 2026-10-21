@@ -136,7 +136,7 @@ def show(plans: list[Plan], console: str, out: Callable[[str], None] = print) ->
 
 
 def apply(store: Store, mover: Mover, plans: list[Plan], run_id: int,
-          out: Callable[[str], None] = print, counts: Counter | None = None) -> Counter:
+          out: Callable[[str], None] = print, counts: Counter | None = None, flat_separator: str = "") -> Counter:
     """Carry out the plans, counting into `counts` (so a caller keeps the tally if this raises).
 
     A folder that cannot be created is skipped (nothing is journaled or moved for it) and the
@@ -145,11 +145,14 @@ def apply(store: Store, mover: Mover, plans: list[Plan], run_id: int,
     for number, item in enumerate(plans, 1):
         for folder, moves in item.by_folder().items():
             try:
-                created = mover.ensure_folder(item.mailbox.account, folder)
+                created, used = mover.ensure_folder(item.mailbox.account, folder, flat_separator)
             except ConnectorError as exc:
                 counts["folder_failed"] += len(moves)
                 out(f"  ! mailbox {number}: {exc}; its {len(moves)} emails for {folder} were not moved")
                 continue
+            if used != folder:
+                out(f"  mailbox {number}: using top-level folder {used} for {folder}")
+            folder = used
             if created:
                 counts["folders_created"] += 1
                 out(f"  created folder {folder} (mailbox {number})")

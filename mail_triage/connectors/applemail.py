@@ -60,11 +60,13 @@ function run(argv) {
   return JSON.stringify(out);
 }"""
 # Creates each missing level of argv[1] ("Laya/Newsletters" → "Laya", then "Newsletters" in it)
-# inside the account, so it is created on the mail server, not "On My Mac". IMAP and iCloud
-# accounts nest a full path given to the account; Exchange accounts (type "unknown" in Mail) would
-# keep it as one name ("Laya/Newsletters" inside "Laya"), so there the leaf goes into its parent.
-# An existing folder is always reused, so running this again creates nothing. Mail creates folders
-# in the background (slowly while it is busy moving mail), so wait until the new one is visible.
+# inside the account, so it is created on the mail server, not "On My Mac". An existing folder is
+# always reused, so running this again creates nothing. Mail creates folders in the background
+# (slowly while it is busy moving mail), so wait until the new one is visible.
+# Exchange accounts (type "unknown" in Mail) cannot get nested folders by script: a full path
+# becomes one folder literally named "Laya/Newsletters", and creating inside a parent fails
+# (-10000). There a nested folder is only used if it exists; otherwise, with a separator in
+# argv[3], a top-level folder "Laya-Newsletters" is used instead.
 _ENSURE = _RESOLVE + """
 function run(argv) {
   const Mail = Application('Mail');
@@ -74,22 +76,30 @@ function run(argv) {
   function exists(path) {
     try { resolve(account, path).name(); return true; } catch (e) { return false; }
   }
+  function create(path) {
+    try { account.mailboxes.push(Mail.Mailbox({name: path})); } catch (e) { return Number(e.errorNumber) || -1; }
+    for (let wait = 0; wait < Number(argv[2]) && !exists(path); wait++) delay(0.5);
+    return exists(path) ? 0 : -2;
+  }
   const parts = argv[1].split('/');
+  if (exists(argv[1])) return JSON.stringify({ok: true, created: false, folder: argv[1]});
+  if (exchange && parts.length > 1) {
+    if (!argv[3]) return JSON.stringify({ok: false, failed: argv[1], code: 'nested', exchange: true});
+    const flat = parts.join(argv[3]);
+    if (exists(flat)) return JSON.stringify({ok: true, created: false, folder: flat});
+    const code = create(flat);
+    return JSON.stringify(code ? {ok: false, failed: flat, code: code, exchange: true}
+                               : {ok: true, created: true, folder: flat});
+  }
   let created = false;
   for (let i = 1; i <= parts.length; i++) {
     const path = parts.slice(0, i).join('/');
     if (exists(path)) continue;
-    try {
-      if (i > 1 && exchange) resolve(account, parts.slice(0, i - 1).join('/')).mailboxes.push(Mail.Mailbox({name: parts[i - 1]}));
-      else account.mailboxes.push(Mail.Mailbox({name: path}));
-    } catch (e) {
-      return JSON.stringify({ok: false, created: created, failed: path, code: Number(e.errorNumber) || 0, exchange: exchange});
-    }
+    const code = create(path);
+    if (code) return JSON.stringify({ok: false, failed: path, code: code, exchange: exchange});
     created = true;
-    for (let wait = 0; wait < Number(argv[2]) && !exists(path); wait++) delay(0.5);
-    if (!exists(path)) return JSON.stringify({ok: false, created: created, failed: path, code: 0, exchange: exchange});
   }
-  return JSON.stringify({ok: true, created: created});
+  return JSON.stringify({ok: true, created: created, folder: argv[1]});
 }"""
 FOLDER_WAIT_SECONDS = 30
 # argv: account, source mailbox, destination mailbox, then pairs of (message id, Message-ID).
@@ -165,16 +175,20 @@ class AppleMailConnector:
 
     # -- write side (./triage apply only) -----------------------------------------------------
 
-    def ensure_folder(self, account: str, folder: str) -> bool:
-        result = _run(_ENSURE, account, folder, str(FOLDER_WAIT_SECONDS * 2), timeout=FOLDER_WAIT_SECONDS + 90)
-        if not result["ok"]:
-            failed, code = str(result.get("failed") or folder), result.get("code")
-            reason = (f"Mail refused to create {failed} (error {code})" if code else
-                      f"Mail did not show the new folder {failed} within {FOLDER_WAIT_SECONDS} s")
-            hint = ("; on Exchange, create the folder once yourself in Mail or Outlook and apply will use it"
-                    if result.get("exchange") else "; it may still be busy moving mail")
-            raise ConnectorError(reason + hint)
-        return bool(result["created"])
+    def ensure_folder(self, account: str, folder: str, flat_separator: str = "") -> tuple[bool, str]:
+        result = _run(_ENSURE, account, folder, str(FOLDER_WAIT_SECONDS * 2), flat_separator,
+                      timeout=FOLDER_WAIT_SECONDS + 90)
+        if result["ok"]:
+            return bool(result["created"]), str(result["folder"])
+        failed, code = str(result.get("failed") or folder), result.get("code")
+        if code == "nested":
+            raise ConnectorError(f"Mail cannot create subfolders on Exchange accounts. Create {folder} once in "
+                                 "Outlook on the web, or set  exchange_flat_separator = \"-\"  under [actions] to "
+                                 f"use a top-level folder {folder.replace('/', '-')} there")
+        if code == -2:
+            raise ConnectorError(f"Mail did not show the new folder {failed} within {FOLDER_WAIT_SECONDS} s; "
+                                 "it may still be busy moving mail")
+        raise ConnectorError(f"Mail refused to create {failed} (error {code})")
 
     def move(self, mailbox: Mailbox, items: list[tuple[str, str]], folder: str) -> list[str]:
         moved = []

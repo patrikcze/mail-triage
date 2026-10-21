@@ -23,22 +23,29 @@ INBOX = Mailbox("acct", "INBOX")
 class FakeMail(FakeConnector):
     """Mail program with folders. A moved message gets a new native id, as in Apple Mail."""
 
-    def __init__(self, sources):
+    def __init__(self, sources, exchange=False):
         super().__init__(sources)
         self.boxes = {"INBOX": list(self.infos)}
         self.created = []
+        self.exchange = exchange          # like Exchange in Mail: no nested folders by script
 
     def list(self, mailbox):
         if mailbox.name not in self.boxes:
             raise ConnectorError("no such mailbox")
         return list(self.boxes[mailbox.name])
 
-    def ensure_folder(self, account, folder):
+    def ensure_folder(self, account, folder, flat_separator=""):
         if folder in self.boxes:
-            return False
+            return False, folder
+        if self.exchange and "/" in folder:
+            if not flat_separator:
+                raise ConnectorError("Mail cannot create subfolders on Exchange accounts")
+            folder = folder.replace("/", flat_separator)
+            if folder in self.boxes:
+                return False, folder
         self.boxes[folder] = []
         self.created.append(folder)
-        return True
+        return True, folder
 
     def move(self, mailbox, items, folder):
         if folder not in self.boxes:
@@ -202,10 +209,10 @@ class ActionsTest(unittest.TestCase):
         self.mail.infos.append(self.mail.infos[0])
         self.scan(mode="all")
         real = self.mail.ensure_folder
-        def flaky(account, folder):
+        def flaky(account, folder, flat_separator=""):
             if folder == "Laya/Promotions":
                 raise ConnectorError("Mail did not show the new folder Laya/Promotions within 30 s")
-            return real(account, folder)
+            return real(account, folder, flat_separator)
         plan = self.plan()
         plan.moves[0] = replace(plan.moves[0], folder="Laya/Review")
         lines = []
@@ -232,6 +239,31 @@ class ActionsTest(unittest.TestCase):
         counts = actions.undo(self.store, self.mail, folder="Laya/Review")
         self.assertEqual(counts["moved_back"], 1)
         self.assertEqual(self.mail.subjects("INBOX"), ["Sunday lunch"])
+        self.assertEqual(len(self.mail.subjects("Laya/Promotions")), 3)
+
+    def test_exchange_without_flat_folders_moves_nothing(self):
+        self.mail.exchange = True
+        self.scan()
+        counts = actions.apply(self.store, self.mail, [self.plan()], run_id=1, out=lambda _: None)
+        self.assertEqual((counts["moved"], counts["folder_failed"], self.mail.created), (0, 3, []))
+
+    def test_exchange_flat_folders_are_used_journaled_and_undone(self):
+        self.mail.exchange = True
+        self.scan()
+        lines = []
+        counts = actions.apply(self.store, self.mail, [self.plan()], run_id=1, out=lines.append, flat_separator="-")
+        self.assertEqual((counts["moved"], self.mail.created), (3, ["Laya-Promotions"]))
+        self.assertTrue(any("using top-level folder Laya-Promotions" in line for line in lines))
+        folders = {row[0] for row in self.store.db.execute("SELECT to_folder FROM actions")}
+        self.assertEqual(folders, {"Laya-Promotions"})
+        self.assertEqual(actions.undo(self.store, self.mail)["moved_back"], 3)
+
+    def test_existing_nested_folder_wins_on_exchange(self):
+        self.mail.exchange = True
+        self.mail.boxes["Laya/Promotions"] = []          # created by hand, e.g. in Outlook on the web
+        self.scan()
+        counts = actions.apply(self.store, self.mail, [self.plan()], run_id=1, out=lambda _: None, flat_separator="-")
+        self.assertEqual((counts["moved"], self.mail.created), (3, []))
         self.assertEqual(len(self.mail.subjects("Laya/Promotions")), 3)
 
     def test_mail_program_error_stops_and_marks_failed(self):
@@ -269,6 +301,10 @@ class ConfigGuardTest(unittest.TestCase):
                 self.load(text)
         with self.assertRaises(configmod.ConfigError):
             self.load("[actions]\nenabled = \"yes\"\n")
+        for bad in ('"/"', '"abc"', '1'):
+            with self.assertRaises(configmod.ConfigError, msg=bad):
+                self.load(f"[actions]\nexchange_flat_separator = {bad}\n")
+        self.assertEqual(self.load('[actions]\nexchange_flat_separator = "-"\n').actions["exchange_flat_separator"], "-")
         kept = self.load('[actions]\nenabled = true\nkeep_in_place = ["personal", "work", "review"]\n'
                          '[policy]\nreview_folder = ""\n')
         self.assertEqual(actions.destinations(kept)["review"], "")

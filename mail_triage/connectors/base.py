@@ -60,9 +60,12 @@ class Connector(Protocol):
 class Mover(Protocol):
     """Write side. Moving (and creating its destination folder) is the only mutation mail-triage performs."""
 
-    def ensure_folder(self, account: str, folder: str) -> bool:
+    def ensure_folder(self, account: str, folder: str, flat_separator: str = "") -> tuple[bool, str]:
         """Make sure `folder` exists in `account`, creating it (and its parents) if missing.
-        Returns True if something was created. Never renames or deletes folders."""
+
+        Returns (created, folder actually used). Where the account cannot have nested folders
+        created by script and `flat_separator` is set, the folder used may be the flattened
+        top-level name ("Laya-Newsletters"). Never renames or deletes folders."""
         ...
 
     def move(self, mailbox: Mailbox, items: list[tuple[str, str]], folder: str) -> list[str]:

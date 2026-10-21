@@ -212,6 +212,9 @@ def _validate(raw: dict) -> Config:
     for key in ("also_allowed", "forbidden", "keep_in_place"):
         if not isinstance(actions.get(key), list) or not all(isinstance(v, str) for v in actions[key]):
             raise ConfigError(f"actions.{key} must be a list of names, e.g. [\"personal\"]")
+    flat = actions.get("exchange_flat_separator")
+    if not isinstance(flat, str) or "/" in flat or len(flat) > 3 or flat.strip(" -_.") != "":
+        raise ConfigError('actions.exchange_flat_separator must be "" (off) or a short separator such as "-"')
     if actions["enabled"]:
         from .connectors.base import validate_destination
         keep = set(actions["keep_in_place"])

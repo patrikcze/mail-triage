@@ -177,7 +177,15 @@ allowed_root = "Laya/"        # destinations must be under this prefix …
 also_allowed = []             # … or one of these exact folders, e.g. ["Finance/Invoices"]
 forbidden = ["Trash", "Deleted Messages", "Deleted Items", "Koš", "Junk", "Spam", "Bin"]
 keep_in_place = ["personal", "work"]   # never moved, even if they have a folder
+exchange_flat_separator = ""  # "-" = on Exchange, create top-level Laya-Newsletters if Laya/Newsletters is missing
 ```
+
+Apple Mail cannot create nested folders on Exchange accounts by script: its scripting dictionary
+covers POP, IMAP and iCloud accounts, and on Exchange a path becomes one folder literally named
+`Laya/Newsletters`, while creating inside a parent fails. Nested folders you create yourself
+(Outlook on the web works) are found and used. With `exchange_flat_separator = "-"`, a missing
+folder on Exchange is created at the top level as `Laya-Newsletters` instead; journal and `undo`
+use the folder actually used.
 
 Where each category goes by default (`./triage categories` shows your own settings):
 

@@ -193,3 +193,7 @@ forbidden = ["Trash", "Deleted Messages", "Deleted Items", "Koš", "Junk", "Spam
 # These categories never move, even if they have a folder: mail written to you stays in the
 # mailbox it was scanned in.
 keep_in_place = ["personal", "work"]
+# Exchange accounts in Apple Mail cannot get subfolders by script. "" = use Laya/Newsletters only
+# if you created it yourself (e.g. in Outlook on the web); "-" = otherwise create and use a
+# top-level folder Laya-Newsletters there. Existing nested folders are always preferred.
+exchange_flat_separator = ""

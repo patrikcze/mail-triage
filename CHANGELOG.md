@@ -16,10 +16,11 @@
   columns. Still one offline file: data is inert JSON, the only script is pinned by its hash in
   the Content-Security-Policy, and mail text is inserted as text only.
 - `apply --limit N` reports how many more messages are ready for a later run.
-- Exchange accounts in Mail: folders are now created one level at a time (`Newsletters` inside
-  `Laya`) instead of as one folder literally named `Laya/Newsletters`, and nested folders are
-  found there, so a rerun reuses them instead of creating another. IMAP and iCloud accounts keep
-  the method that already worked.
+- Exchange accounts in Mail: nested folders are found (and reused on every run), but Mail cannot
+  create them there by script. A missing one is reported with what to do: create it once in
+  Outlook on the web, or set `[actions] exchange_flat_separator = "-"` to create and use a
+  top-level `Laya-Newsletters` instead. Nothing is created under a wrong name any more. IMAP
+  and iCloud accounts keep the creation method that worked.
 - `undo --into FOLDER` moves back only the emails moved into one folder (e.g. `Laya/Review`).
 - Creating a folder waits up to 30 s for Mail to show it (Mail creates folders in the
   background, slowly while it is busy moving). A folder that still does not appear is skipped
