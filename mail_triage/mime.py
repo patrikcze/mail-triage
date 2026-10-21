@@ -142,13 +142,18 @@ def provenance_value(kind: str) -> str:
     return f"{kind}; token={PROVENANCE_TOKEN}"
 
 
+def has_provenance(value: str, kind: str) -> bool:
+    """Whitespace-insensitive: long header values are folded, and Python < 3.13 keeps the fold's indent."""
+    return " ".join((value or "").split()) == provenance_value(kind)
+
+
 def header_signals(msg, from_address: str, subject: str) -> dict:
     keys = {key.lower() for key in msg.keys()}
     precedence = _header(msg, "Precedence").strip().lower()
     auto = _header(msg, "Auto-Submitted").strip().lower()
     mailer = _header(msg, "X-Mailer")
     return {
-        "headers_unavailable": _header(msg, PROVENANCE) == provenance_value("structured-without-headers"),
+        "headers_unavailable": has_provenance(_header(msg, PROVENANCE), "structured-without-headers"),
         "list_unsubscribe": "list-unsubscribe" in keys,
         "bulk": precedence in ("bulk", "list", "junk") or "list-id" in keys,
         "esp": any(name in keys for name in _ESP_HEADERS) or bool(_ESP_MAILERS.search(mailer)),

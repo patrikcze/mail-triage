@@ -33,7 +33,7 @@ from ..backends.base import BackendError
 from ..connectors.base import ConnectorError, Mailbox, MessageInfo
 from ..connectors.outlook.common import PROVENANCE, normalize_source
 from ..engine import Engine
-from ..mime import parse_message, provenance_value
+from ..mime import has_provenance, parse_message
 from ..store import Store, message_key
 
 PORT = 48765
@@ -79,7 +79,7 @@ def inspect(source: str) -> dict:
     headers = mail["headers"]
     return {
         "parsed": True,
-        "headers_available": headers.get(PROVENANCE.lower()) == provenance_value("structured-with-headers"),
+        "headers_available": has_provenance(headers.get(PROVENANCE.lower(), ""), "structured-with-headers"),
         "received": "received" in headers,
         "authentication_results": "authentication-results" in headers,
         "message_id": bool(mail["message_id"]),

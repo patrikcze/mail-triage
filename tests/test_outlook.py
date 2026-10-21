@@ -130,6 +130,12 @@ class NormalizationTest(unittest.TestCase):
                "A synthetic body that is long enough to be read.\n")
         self.assertFalse(parse_message(raw)["signals"]["headers_unavailable"])
 
+    def test_folded_provenance_header_is_recognised(self):
+        from mail_triage.mime import has_provenance, provenance_value
+        value = provenance_value("structured-without-headers")
+        self.assertTrue(has_provenance("\n " + value.replace("; ", ";\n "), "structured-without-headers"))
+        self.assertFalse(has_provenance("structured-without-headers", "structured-without-headers"))
+
     def test_actual_message_id_fallback_and_no_invented_date(self):
         source = common.normalize_source(**structured(), message_id="<supplied@example.org>")
         mail = parse_message(source)
