@@ -72,7 +72,7 @@ class NoDeletionTest(unittest.TestCase):
     def test_no_code_can_delete_or_trash_mail(self):
         forbidden = re.compile(r"\.(delete|trash|expunge)\(|deleteMessage|\bdelete\s*\(|junk mail status|"
                                r"set deleted|flag.*deleted|move to trash", re.I)
-        for path in (PACKAGE / "connectors").glob("*.py"):
+        for path in (PACKAGE / "connectors").rglob("*.py"):
             self.assertIsNone(forbidden.search(path.read_text()), path.name)
 
     def test_destinations_are_restricted(self):

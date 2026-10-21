@@ -7,8 +7,10 @@ Thanks for helping. A few rules keep this project safe for people's mailboxes:
    fixtures. Use `--console counts` when you have to touch a real mailbox while developing.
 2. **The core stays standard-library only** (Python 3.11+). Model runtimes run out of process
    (`backends/`), mail sources sit behind the `Connector` protocol (`connectors/`).
-3. **Nothing leaves the computer.** Do not weaken `privacy.install_network_guard()`. A connector
-   that must reach a mail server gets an explicit, configured allow-list. See
+   pywin32 is an optional Windows-only Outlook extra; imports stay inside its isolated worker.
+3. **Model processing stays local.** Do not weaken `privacy.install_network_guard()`. A future
+   direct-network connector needs a separately authorized, narrowly scoped transport;
+   external clients already sync outside Python's guard. See
    [docs/EXTENDING.md](docs/EXTENDING.md).
 4. **Never delete mail.** The only mutation that will ever exist is moving to a configured
    folder.
@@ -16,6 +18,13 @@ Thanks for helping. A few rules keep this project safe for people's mailboxes:
 
    ```sh
    python3 -m unittest discover -s tests
+   python3 -m compileall -q mail_triage
+   git diff --check
    ```
 
 Architecture overview: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Outlook tests mock all mailbox boundaries; macOS also executes fixed JXA against synthetic
+objects, never a real application. Do not add live Outlook access to CI. The
+[Outlook design](docs/OUTLOOK_CONNECTOR_DESIGN.md) distinguishes mock-tested APIs from
+verified live capabilities. Use its opt-in checklist on an authorized test inbox outside
+AI-assisted/shared sessions; never attach real content or native exception dumps.

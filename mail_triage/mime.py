@@ -5,6 +5,7 @@ from email import policy
 from email.utils import getaddresses, parseaddr, parsedate_to_datetime
 from html.parser import HTMLParser
 import re
+import secrets
 
 
 BODY_CHARS = 3000
@@ -131,12 +132,23 @@ def _header(msg, name: str) -> str:
         return ""
 
 
+PROVENANCE = "X-Mail-Triage-Source-Provenance"
+# Random per process: a received email cannot forge the marker that Mail Triage's own
+# structured-source normalizer adds, so raw mail (Apple Mail, .eml) is never affected by it.
+PROVENANCE_TOKEN = secrets.token_hex(16)
+
+
+def provenance_value(kind: str) -> str:
+    return f"{kind}; token={PROVENANCE_TOKEN}"
+
+
 def header_signals(msg, from_address: str, subject: str) -> dict:
     keys = {key.lower() for key in msg.keys()}
     precedence = _header(msg, "Precedence").strip().lower()
     auto = _header(msg, "Auto-Submitted").strip().lower()
     mailer = _header(msg, "X-Mailer")
     return {
+        "headers_unavailable": _header(msg, PROVENANCE) == provenance_value("structured-without-headers"),
         "list_unsubscribe": "list-unsubscribe" in keys,
         "bulk": precedence in ("bulk", "list", "junk") or "list-id" in keys,
         "esp": any(name in keys for name in _ESP_HEADERS) or bool(_ESP_MAILERS.search(mailer)),

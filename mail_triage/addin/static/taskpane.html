@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mail Triage</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <script src="taskpane.js?build=7"></script>
+  <style>
+    :root { color-scheme: light dark; --fg: #1b1b1b; --bg: #ffffff; --muted: #5c5c5c; --accent: #2b6cb0; }
+    @media (prefers-color-scheme: dark) {
+      :root { --fg: #f0f0f0; --bg: #1f1f1f; --muted: #b0b0b0; --accent: #6aa9ef; }
+    }
+    body { font: 13px -apple-system, "Segoe UI", sans-serif; margin: 12px; color: var(--fg); background: var(--bg); }
+    button { padding: 6px 14px; border-radius: 4px; border: 1px solid var(--accent);
+             background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .45; cursor: default; }
+    dl { display: grid; grid-template-columns: auto auto; gap: 2px 12px; }
+    dt { color: var(--muted); }
+    section { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--muted); }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button.secondary { background: transparent; color: var(--fg); border-color: var(--muted); }
+    progress { width: 100%; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+    td { padding: 2px 4px; border-bottom: 1px solid rgba(127,127,127,.25); vertical-align: top; }
+    td.v-junk { color: #e5534b; font-weight: 600; } td.v-review { color: #c69026; font-weight: 600; }
+    td.v-keep { color: #57ab5a; font-weight: 600; }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <p>Sorts your mail into <strong>keep</strong>, <strong>review</strong> and <strong>junk</strong>.
+     Messages are read and decided <strong>only by Mail Triage on this computer</strong>; nothing is moved
+     or changed in your mailbox.</p>
+  <div id="single">
+    <div class="row">
+      <button id="run" disabled>Triage this message</button>
+      <button id="report" class="secondary">Open report</button>
+    </div>
+    <p class="row"><label><input type="checkbox" id="auto" disabled> Auto-triage each message I open</label></p>
+    <p id="auto-note" class="muted" hidden>Click the first message, then press ↓ to go through the list; each message
+      is triaged as it is shown (with full headers). Outlook may mark viewed messages as read, depending on its
+      reading-pane setting.</p>
+  </div>
+  <p id="client" class="muted"></p>
+  <p id="status">Loading Office.js…</p>
+  <dl id="facts"></dl>
+  <section id="batch" hidden>
+    <div class="row">
+      <button id="triage" disabled>Triage selection</button>
+      <button id="cancel" class="secondary" hidden>Cancel</button>
+      <span id="selection" class="muted"></span>
+    </div>
+    <p id="batch-status" class="muted">Select up to 100 messages, then choose Triage selection.
+      Select the next messages and repeat; messages already done are skipped.</p>
+    <p id="headers-note" class="muted" hidden>This Outlook does not return transport headers for selected
+      messages, so batch triage uses sender, subject and body. Junk is capped at review; open a message and use
+      “Triage this message” for a header-based check.</p>
+    <progress id="progress" value="0" max="1" hidden></progress>
+    <p id="totals"></p>
+    <table><tbody id="results"></tbody></table>
+  </section>
+</body>
+</html>

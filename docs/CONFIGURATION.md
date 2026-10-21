@@ -17,6 +17,43 @@ Changes to categories, rules, model, instructions or policy change the settings 
 `--rescan-changed` re-decides exactly the emails decided under an older fingerprint. Privacy
 and learning settings do not cause re-decisions.
 
+## Outlook add-in
+
+The add-in needs no extra settings: categories, rules, model, policy and `[privacy]` apply as
+they do for scans. Manage the localhost helper with `./triage addin install|status|start|stop|run|uninstall`.
+See [OUTLOOK_ADDIN.md](OUTLOOK_ADDIN.md) for the files it adds to the data folder.
+
+## Mail source and Outlook capability checks
+
+Source selection is a CLI option, not a new TOML section. Existing configurations need no
+migration and default to Apple Mail:
+
+```sh
+./triage scan --source applemail
+./triage doctor --source outlook
+./triage doctor --source outlook --account USER --probe-read
+./triage scan --source outlook --account USER --limit 20 --console counts --no-report
+./triage scan --source outlook --account USER --mailbox Projects/Team --console counts
+./triage scan --folder tests/fixtures/demo
+```
+
+`--source` and `--folder` are mutually exclusive. `--account` is repeatable and exact
+(email/display name on Mac, email/store name on Windows); invalid or ambiguous selections
+fail without printing identifiers. `--mailbox` requires exactly one selected account and is
+a path beneath its root; default `INBOX` uses each account's own inbox, not a mailbox search.
+Standalone `report --account` filters by the canonical account stored in history, not an
+Outlook display-name alias; scan-generated reports resolve aliases automatically.
+
+`--limit` limits decisions and selective body reads, not full metadata enumeration.
+`--probe-read` is Outlook-only and opt-in, sampling at most one item per selected inbox with
+flags/counts output. Without a sample, body/header capabilities remain unverified. Outlook
+is experimental; see [the design and support status](OUTLOOK_CONNECTOR_DESIGN.md).
+
+Before corporate use, obtain approval and consider `[privacy] store_subjects = false`,
+`console = "counts"` and approved retention. `--no-report` prevents report generation, not
+history metadata storage. No Graph/OAuth client IDs, credentials, browser profiles or write
+permissions are configured by this implementation.
+
 ## Categories and folders
 
 ```toml

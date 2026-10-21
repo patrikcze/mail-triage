@@ -55,8 +55,11 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def message_key(account: str, message_id: str, native_id: str) -> str:
-    """Stable identity: account + Message-ID header (or the mail program's own id)."""
+def message_key(account: str, message_id: str, native_id: str, *, scope: str = "", mailbox: str = "") -> str:
+    """Legacy identity unchanged; opt-in native scopes isolate stores and duplicate RFC IDs."""
+    if scope:
+        identity = json.dumps([scope, account, mailbox, native_id], ensure_ascii=True)
+        return hashlib.sha256(("native-v1\0" + identity).encode()).hexdigest()
     ident = message_id.strip().strip("<>").strip() or f"native:{native_id}"
     return hashlib.sha256(f"{account}\0{ident}".encode()).hexdigest()
 

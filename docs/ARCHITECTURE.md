@@ -28,13 +28,17 @@
 | `store.py` | SQLite: messages, versioned decisions, sender stats, teachings, action journal, runs. |
 | `report.py` | CSV plus self-contained HTML. |
 | `connectors/` | Mail sources (`base.py` defines the protocol and the future `Mover`). |
+| `addin/` | Outlook add-in: task pane (`static/`), localhost HTTPS helper (`server.py`, uses `Engine.decide_one`), certificate (`certs.py`), macOS LaunchAgent (`service.py`). Nothing in the mail-client scan path imports it. |
 | `backends/` | Model backends (`base.py` defines the protocol, answer validation and language routing). |
 | `provision.py` | MLX runtime and pinned checkpoint download (used by `setup` only). |
 | `mlx_worker.py` | Runs in the laya-mlx venv. Loads one checkpoint and answers JSON lines. |
 
 ## Design rules
 
-1. **Every email is decided once.** Its identity is sha256(account + Message-ID). A scan
+1. **Every email is decided once.** Legacy identity is sha256(account + Message-ID/native ID).
+   Outlook opts into native scope + account + mailbox + native ID, avoiding duplicate RFC IDs
+   without changing legacy keys or schema. Native ID changes may cause safe reclassification.
+   A scan
    skips decided mail unless asked otherwise (`--rescan`, or `--rescan-changed` after a
    settings change). A teaching invalidates only the affected senders.
 2. **Do the cheap thing first.** Listing metadata costs about 1 ms per message; fetching a full
@@ -47,8 +51,13 @@
 5. **History is append-only per message.** Re-deciding adds a new decision row and marks it
    current, so earlier decisions stay inspectable.
 6. **The core does not know the platform.** Apple Mail, MLX and llama.cpp are plug-ins behind
-   protocols. Windows/Outlook needs a new connector, and possibly a new backend, but no core
-   change.
+   protocols. Outlook adapters are isolated in `connectors/outlook/`; no Outlook-specific
+   logic is required in the core. Unknown header availability prevents junk-memory shortcuts;
+   structured-source provenance allows the existing policy to cap missing evidence.
+
+Outlook is experimental: no live message-read version has been validated. See
+[OUTLOOK_CONNECTOR_DESIGN.md](OUTLOOK_CONNECTOR_DESIGN.md). Direct-network Graph remains
+unimplemented/blocked pending authorization.
 
 ## Database (schema 1)
 

@@ -47,6 +47,7 @@ class Engine:
         self.fingerprint = config.fingerprint()
         self.console = config.privacy["console"]
         self.counts = Counter()
+        self.accounts: list[str] = []
 
     # -- output ------------------------------------------------------------------------------
 
@@ -85,6 +86,9 @@ class Engine:
         recalled = learning.recall(self.config, self.store, info.sender, info.subject)
         if recalled is not None:
             category, reason = recalled
+            action = "review" if category == "review" else self.config.category(category).action
+            if action == "junk" and info.headers_available is not True:
+                return None
             return decide_category(self.config, category, reason, "learned"), "memory"
         return None
 
@@ -98,21 +102,48 @@ class Engine:
         answers, fluent, label = self.router.classify(model_state(mail, int(self.config.model["body_chars"])))
         return decide(self.config, answers, mail["signals"], fluent=fluent), "model", label
 
+    def decide_one(self, mailbox: Mailbox, info: MessageInfo, source: str) -> tuple[Decision, str]:
+        """Decide and record one message whose source the caller already holds (the Outlook add-in).
+
+        Same order as scan(): teachings, rules and sender memory first, then the model. scan() does
+        not use this method, so mail-client scans are unaffected by it.
+        """
+        key = message_key(mailbox.account, info.message_id, info.native_id,
+                          scope=info.identity_scope, mailbox=mailbox.name)
+        shortcut = self._shortcut(info)
+        if shortcut is not None:
+            decision, origin = shortcut
+            self._record(mailbox, info, key, decision, origin)
+        else:
+            decision, origin, label = self._classify(source)
+            self._record(mailbox, info, key, decision, origin, label)
+        self.store.commit()
+        return decision, origin
+
+    def close(self) -> None:
+        if self.router is not None:
+            self.router.close()
+            self.router = None
+
     def scan(self, options: ScanOptions) -> Counter:
         self.counts = Counter()
+        self.accounts = []
         purged = self.store.purge_older(int(self.config.privacy["retention_days"]))
         if purged:
             self.out(f"Removed {purged} entries older than {self.config.privacy['retention_days']} days from history.")
         run = self.store.start_run(self.connector.name)
         remaining = options.limit
         try:
-            for number, mailbox in enumerate(self.connector.mailboxes(options.accounts, options.mailbox), 1):
+            mailboxes = self.connector.mailboxes(options.accounts, options.mailbox)
+            self.accounts = sorted({mailbox.account for mailbox in mailboxes})
+            for number, mailbox in enumerate(mailboxes, 1):
                 if remaining is not None and remaining <= 0:
                     break
                 infos = self.connector.list(mailbox)
                 todo = []
                 for info in infos:
-                    key = message_key(mailbox.account, info.message_id, info.native_id)
+                    key = message_key(mailbox.account, info.message_id, info.native_id,
+                                      scope=info.identity_scope, mailbox=mailbox.name)
                     if self.store.needs_decision(key, options.mode, self.fingerprint):
                         todo.append((info, key))
                 self.counts["seen"] += len(infos)
@@ -140,7 +171,7 @@ class Engine:
                             self.counts["gone"] += 1
                             continue
                         try:
-                            decision, source, label = self._classify(sources[info.native_id])
+                            decision, source, label = self._classify(sources.pop(info.native_id))
                         except BackendError:
                             raise              # the model is gone: stop, keep what is decided
                         except Exception as exc:   # one malformed message must not stop the run
