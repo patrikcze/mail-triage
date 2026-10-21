@@ -79,11 +79,15 @@ function run(argv) {
   for (let i = 1; i <= parts.length; i++) {
     const path = parts.slice(0, i).join('/');
     if (exists(path)) continue;
-    if (i > 1 && exchange) resolve(account, parts.slice(0, i - 1).join('/')).mailboxes.push(Mail.Mailbox({name: parts[i - 1]}));
-    else account.mailboxes.push(Mail.Mailbox({name: path}));
+    try {
+      if (i > 1 && exchange) resolve(account, parts.slice(0, i - 1).join('/')).mailboxes.push(Mail.Mailbox({name: parts[i - 1]}));
+      else account.mailboxes.push(Mail.Mailbox({name: path}));
+    } catch (e) {
+      return JSON.stringify({ok: false, created: created, failed: path, code: Number(e.errorNumber) || 0, exchange: exchange});
+    }
     created = true;
     for (let wait = 0; wait < Number(argv[2]) && !exists(path); wait++) delay(0.5);
-    if (!exists(path)) return JSON.stringify({ok: false, created: created});
+    if (!exists(path)) return JSON.stringify({ok: false, created: created, failed: path, code: 0, exchange: exchange});
   }
   return JSON.stringify({ok: true, created: created});
 }"""
@@ -164,8 +168,12 @@ class AppleMailConnector:
     def ensure_folder(self, account: str, folder: str) -> bool:
         result = _run(_ENSURE, account, folder, str(FOLDER_WAIT_SECONDS * 2), timeout=FOLDER_WAIT_SECONDS + 90)
         if not result["ok"]:
-            raise ConnectorError(f"Mail did not show the new folder {folder} within {FOLDER_WAIT_SECONDS} s "
-                                 "(it may still be busy moving mail, or the server refused the name)")
+            failed, code = str(result.get("failed") or folder), result.get("code")
+            reason = (f"Mail refused to create {failed} (error {code})" if code else
+                      f"Mail did not show the new folder {failed} within {FOLDER_WAIT_SECONDS} s")
+            hint = ("; on Exchange, create the folder once yourself in Mail or Outlook and apply will use it"
+                    if result.get("exchange") else "; it may still be busy moving mail")
+            raise ConnectorError(reason + hint)
         return bool(result["created"])
 
     def move(self, mailbox: Mailbox, items: list[tuple[str, str]], folder: str) -> list[str]:
