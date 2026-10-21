@@ -82,7 +82,8 @@ class NoDeletionTest(unittest.TestCase):
         writes = re.compile(r"\.(push|make|move|set)\w*\(|\.(readStatus|flaggedStatus|junkMailStatus)\b")
         for name in ("_INBOXES", "_EXISTS", "_LIST", "_FETCH"):
             self.assertIsNone(writes.search(getattr(applemail, name)), name)
-        self.assertEqual(writes.findall(applemail._ENSURE), [("push", "")])
+        self.assertEqual(writes.findall(applemail._ENSURE), [("push", ""), ("push", "")])
+        self.assertIsNone(writes.search(applemail._RESOLVE), "_RESOLVE")
         self.assertNotRegex(applemail._MOVE, r"readStatus|flaggedStatus|junkMailStatus|mailboxes\.push")
 
     def test_destinations_are_restricted(self):

@@ -193,7 +193,9 @@ first step). To move receipts or notifications too, give the category a folder, 
 `folder = "Laya/Notifications"`. With `enabled = true`, `./triage doctor` refuses folders that
 break the `[actions]` limits.
 
-A message moves only if it is still in the mailbox where it was decided, was decided with the
+Running `apply` again is safe: existing folders are reused, messages already moved are no longer
+in the scanned mailbox, and a message is never moved twice unless it was re-decided since. `undo`
+reverses each journaled move once. A message moves only if it is still in the mailbox where it was decided, was decided with the
 current settings (otherwise run `./triage scan --rescan-changed` first), has a Message-ID
 (checked again inside Mail just before the move), and was not moved before. Mail you moved back
 with `./triage undo` stays where it is until it is re-decided. Moving works with Apple Mail;
