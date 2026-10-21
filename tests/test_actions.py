@@ -195,6 +195,45 @@ class ActionsTest(unittest.TestCase):
         status = self.store.db.execute("SELECT status FROM actions").fetchone()[0]
         self.assertEqual(status, "failed")
 
+    def test_folder_that_cannot_be_created_is_skipped_and_the_rest_moves(self):
+        self.store.teach("sender", "deals@gadgets.example.com", "review")
+        self.scan()
+        self.store.teach("sender", "deals@gadgets.example.com", "promotion")   # invalidates; redecide two ways
+        self.mail.infos.append(self.mail.infos[0])
+        self.scan(mode="all")
+        real = self.mail.ensure_folder
+        def flaky(account, folder):
+            if folder == "Laya/Promotions":
+                raise ConnectorError("Mail did not show the new folder Laya/Promotions within 30 s")
+            return real(account, folder)
+        plan = self.plan()
+        plan.moves[0] = replace(plan.moves[0], folder="Laya/Review")
+        lines = []
+        with mock.patch.object(self.mail, "ensure_folder", side_effect=flaky):
+            counts = actions.apply(self.store, self.mail, [plan], run_id=1, out=lines.append)
+        self.assertEqual((counts["moved"], counts["folder_failed"]), (1, 2))
+        self.assertTrue(any("were not moved" in line for line in lines))
+        journaled = self.store.db.execute("SELECT COUNT(*) FROM actions").fetchone()[0]
+        self.assertEqual(journaled, 1)                     # nothing journaled for the skipped folder
+
+    def test_counts_survive_a_failed_move(self):
+        self.scan()
+        plan = self.plan()
+        counts = actions.Counter()
+        with mock.patch.object(self.mail, "move", side_effect=ConnectorError("Mail returned error 1")):
+            with self.assertRaises(ConnectorError):
+                actions.apply(self.store, self.mail, [plan], run_id=1, out=lambda _: None, counts=counts)
+        self.assertEqual(counts["folders_created"], 1)
+
+    def test_undo_only_one_folder(self):
+        self.store.teach("sender", "mom@family.example.org", "review")
+        self.scan()
+        self.apply()
+        counts = actions.undo(self.store, self.mail, folder="Laya/Review")
+        self.assertEqual(counts["moved_back"], 1)
+        self.assertEqual(self.mail.subjects("INBOX"), ["Sunday lunch"])
+        self.assertEqual(len(self.mail.subjects("Laya/Promotions")), 3)
+
     def test_mail_program_error_stops_and_marks_failed(self):
         self.scan()
         plan = self.plan()

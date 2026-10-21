@@ -16,6 +16,11 @@
   columns. Still one offline file: data is inert JSON, the only script is pinned by its hash in
   the Content-Security-Policy, and mail text is inserted as text only.
 - `apply --limit N` reports how many more messages are ready for a later run.
+- `undo --into FOLDER` moves back only the emails moved into one folder (e.g. `Laya/Review`).
+- Creating a folder waits up to 30 s for Mail to show it (Mail creates folders in the
+  background, slowly while it is busy moving). A folder that still does not appear is skipped
+  and reported, and the other folders and mailboxes continue; the run's counts are kept even
+  when a move fails.
 - Every move is journaled before it happens. A message moves only if it is still in the
   mailbox where it was decided, was decided with the current settings, has a Message-ID
   that Mail re-checks just before the move, and was not moved (or moved back) before.

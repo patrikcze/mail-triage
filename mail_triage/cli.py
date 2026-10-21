@@ -311,14 +311,19 @@ def cmd_apply(args) -> int:
         run = store.start_run(f"apply:{connector.name}")
         counts = Counter()
         try:
-            counts = actions.apply(store, connector, plans, run)
+            actions.apply(store, connector, plans, run, counts=counts)
         finally:
             store.finish_run(run, dict(counts))
         notes = [f"created {counts['folders_created']} folders"] if counts["folders_created"] else []
         if counts["not_moved"]:
             notes.append(f"{counts['not_moved']} changed or gone meanwhile (not moved)")
+        if counts["folder_failed"]:
+            notes.append(f"{counts['folder_failed']} not moved because a folder could not be created "
+                         "(run ./triage apply again once Mail has finished)")
         print(f"\nMoved {counts['moved']} emails{'; ' + ', '.join(notes) if notes else ''}.  Undo: ./triage undo")
-        return 0
+        print("Mail finishes the moves in the background and may be slow until it is done (its activity "
+              "shows \"Moving messages\").")
+        return 1 if counts["folder_failed"] else 0
     finally:
         store.commit()
         store.close()
@@ -330,15 +335,15 @@ def cmd_undo(args) -> int:
     connector = _mover(args)
     store = _store()
     try:
-        pending = store.moves_to_undo(connector.name, args.account, args.all)
+        pending = store.moves_to_undo(connector.name, args.account, args.all, args.into)
         if not pending:
             print("Nothing to undo.")
             return 0
-        scope = "all applies" if args.all else "the last apply"
+        scope = ("all applies" if args.all else "the last apply") + (f" into {args.into}" if args.into else "")
         if not _ask(f"Move {len(pending)} emails from {scope} back to the mailbox they came from?", args.yes):
             print("Nothing moved.")
             return 1
-        counts = actions.undo(store, connector, args.account, args.all)
+        counts = actions.undo(store, connector, args.account, args.all, args.into)
         gone = counts["not_found"]
         print(f"Moved {counts['moved_back']} emails back"
               + (f"; {gone} were no longer in their folder (left where they are)." if gone else "."))
@@ -523,6 +528,7 @@ def parser() -> argparse.ArgumentParser:
     source(s)
     s.add_argument("--account", action="append", help="only this account (repeatable)")
     s.add_argument("--all", action="store_true", help="undo every apply, not only the last one")
+    s.add_argument("--into", metavar="FOLDER", help="only emails moved into this folder, e.g. Laya/Review")
     s.add_argument("--yes", action="store_true", help="move back without asking")
     sub.add_parser("help", help="show this help")
     return p

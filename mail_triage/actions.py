@@ -136,14 +136,23 @@ def show(plans: list[Plan], console: str, out: Callable[[str], None] = print) ->
 
 
 def apply(store: Store, mover: Mover, plans: list[Plan], run_id: int,
-          out: Callable[[str], None] = print) -> Counter:
-    """Carry out the plans. Stops at the first mail-program error; what was done stays journaled."""
-    counts = Counter()
-    for item in plans:
+          out: Callable[[str], None] = print, counts: Counter | None = None) -> Counter:
+    """Carry out the plans, counting into `counts` (so a caller keeps the tally if this raises).
+
+    A folder that cannot be created is skipped (nothing is journaled or moved for it) and the
+    rest continues. A failed move stops the run; what was done stays journaled."""
+    counts = Counter() if counts is None else counts
+    for number, item in enumerate(plans, 1):
         for folder, moves in item.by_folder().items():
-            if mover.ensure_folder(item.mailbox.account, folder):
+            try:
+                created = mover.ensure_folder(item.mailbox.account, folder)
+            except ConnectorError as exc:
+                counts["folder_failed"] += len(moves)
+                out(f"  ! mailbox {number}: {exc}; its {len(moves)} emails for {folder} were not moved")
+                continue
+            if created:
                 counts["folders_created"] += 1
-                out(f"  created folder {folder}")
+                out(f"  created folder {folder} (mailbox {number})")
             journal = {move.info.native_id: store.journal(move.key, item.mailbox.name, folder, run_id)
                        for move in moves}
             store.commit()
@@ -167,11 +176,13 @@ def apply(store: Store, mover: Mover, plans: list[Plan], run_id: int,
     return counts
 
 
-def undo(store: Store, connector, accounts: list[str] | None = None, all_runs: bool = False) -> Counter:
-    """Move messages journaled by apply back to the mailbox they came from (newest apply run by default)."""
+def undo(store: Store, connector, accounts: list[str] | None = None, all_runs: bool = False,
+         folder: str | None = None) -> Counter:
+    """Move messages journaled by apply back to the mailbox they came from (newest apply run by
+    default; only those moved into `folder` when given)."""
     counts = Counter()
     groups: dict[tuple[str, str], list] = defaultdict(list)
-    for row in store.moves_to_undo(connector.name, accounts, all_runs):
+    for row in store.moves_to_undo(connector.name, accounts, all_runs, folder):
         groups[(row["account"], row["to_folder"])].append(row)
     for (account, folder), rows in groups.items():
         here = Mailbox(account, folder)

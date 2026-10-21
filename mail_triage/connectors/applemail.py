@@ -46,7 +46,8 @@ function run(argv) {
   return JSON.stringify(out);
 }"""
 # Creates each missing level of argv[1] ("Laya/Newsletters" → "Laya", then "Laya/Newsletters")
-# inside the account, so it is created on the mail server, not "On My Mac".
+# inside the account, so it is created on the mail server, not "On My Mac". Mail creates it in
+# the background (slowly while it is busy moving mail), so wait until it is visible.
 _ENSURE = """
 function run(argv) {
   const Mail = Application('Mail');
@@ -62,10 +63,12 @@ function run(argv) {
     if (exists(path)) continue;
     account.mailboxes.push(Mail.Mailbox({name: path}));
     created = true;
+    for (let wait = 0; wait < Number(argv[2]) && !exists(path); wait++) delay(0.5);
+    if (!exists(path)) return JSON.stringify({ok: false, created: created});
   }
-  if (!exists(argv[1])) throw new Error('mailbox was not created');
-  return JSON.stringify(created);
+  return JSON.stringify({ok: true, created: created});
 }"""
+FOLDER_WAIT_SECONDS = 30
 # argv: account, source mailbox, destination mailbox, then pairs of (message id, Message-ID).
 # A message is moved only when its Message-ID still matches the one it was decided under.
 _MOVE = """
@@ -140,7 +143,11 @@ class AppleMailConnector:
     # -- write side (./triage apply only) -----------------------------------------------------
 
     def ensure_folder(self, account: str, folder: str) -> bool:
-        return bool(_run(_ENSURE, account, folder, timeout=120))
+        result = _run(_ENSURE, account, folder, str(FOLDER_WAIT_SECONDS * 2), timeout=FOLDER_WAIT_SECONDS + 90)
+        if not result["ok"]:
+            raise ConnectorError(f"Mail did not show the new folder {folder} within {FOLDER_WAIT_SECONDS} s "
+                                 "(it may still be busy moving mail, or the server refused the name)")
+        return bool(result["created"])
 
     def move(self, mailbox: Mailbox, items: list[tuple[str, str]], folder: str) -> list[str]:
         moved = []

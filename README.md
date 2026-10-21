@@ -116,7 +116,12 @@ Moving is off until you switch it on. Set `enabled = true` under `[actions]` in 
 ./triage apply --limit 5     # move only five first, to see it work
 ./triage apply               # show the plan, ask, then move
 ./triage undo                # move the emails of the last apply back
+./triage undo --into Laya/Review   # … only those moved into one folder
 ```
+
+Mail carries out the moves in the background (its activity window shows "Moving messages")
+and can be slow until it is done. Let it finish before running `apply` or `undo` again. A
+folder Mail cannot create in time is skipped and reported; run `apply` again later for it.
 
 - Missing folders (`Laya/`, `Laya/Promotions`, …) are created inside the same mail account, so
   they sync to your mail server like any folder you create yourself.

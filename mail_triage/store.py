@@ -227,12 +227,16 @@ class Store:
             "SELECT * FROM actions WHERE key = ? AND status IN ('applied', 'undone') ORDER BY id DESC LIMIT 1",
             (key,)).fetchone()
 
-    def moves_to_undo(self, connector: str, accounts: list[str] | None = None, all_runs: bool = False) -> list[sqlite3.Row]:
+    def moves_to_undo(self, connector: str, accounts: list[str] | None = None, all_runs: bool = False,
+                      folder: str | None = None) -> list[sqlite3.Row]:
         """Moves that may be in effect (applied, or planned and interrupted), newest apply run only
-        unless all_runs. Joined with the message's account."""
+        unless all_runs, optionally only those into `folder`. Joined with the message's account."""
         sql = ("SELECT a.*, m.account FROM actions a JOIN messages m ON m.key = a.key"
                " WHERE m.connector = ? AND a.status IN ('applied', 'planned')")
         args: list = [connector]
+        if folder:
+            sql += " AND a.to_folder = ?"
+            args.append(folder.strip("/"))
         if accounts:
             sql += f" AND m.account IN ({','.join('?' * len(accounts))})"
             args += accounts
