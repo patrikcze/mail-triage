@@ -78,27 +78,26 @@ Wire it into `backends.create()` and add a `backend` value in `config.py`. Commu
 OpenVINO and GGUF builds of Laya exist on Hugging Face. A llama.cpp server already works on
 Windows through the existing `systemone` backend.
 
-## The move action (planned)
+## The move action
 
-Everything is prepared, but nothing executes yet:
-- `policy.Decision.folder` is the planned destination. The report shows it today.
-- `connectors.base.Mover` has exactly one method: `move(mailbox, native_id, folder)`.
-- `connectors.base.validate_destination()` refuses anything outside `actions.allowed_root` /
-  `actions.also_allowed`, and any Trash/Junk/Deleted folder.
-- The `actions` table in `store.py` is the journal: planned → applied → undone.
+`./triage apply` / `./triage undo` (in `actions.py`) decide what may move; a connector only
+carries it out by implementing `connectors.base.Mover`:
 
-To implement `./triage apply`:
-1. Add `move()` to a connector. For Apple Mail (JXA):
-   `Mail.move(msg, {to: mailbox})`, creating the mailbox under the account if missing.
-2. In a new `actions.py`, read current decisions whose folder is set and not yet applied,
-   validate each destination, write a `planned` journal row, move, then mark `applied`.
-3. Add `./triage apply --dry-run` (default), `./triage apply --yes`, and
-   `./triage undo [--run N]`, which moves journaled messages back.
-4. Keep the rule: **no delete, no trash, no flag changes**. `tests/test_privacy_safety.py`
-   checks this.
-5. Require explicit authorization, re-resolve native identities, journal before execution,
-   validate both destinations and retry state, make retries idempotent and report failures.
-   Do not acquire write permissions while only the read connector exists.
+- `ensure_folder(account, folder) -> bool` creates a missing destination folder (and its
+  parents) inside the account. It never renames or deletes folders.
+- `move(mailbox, [(native_id, message_id), …], folder) -> moved native ids` moves messages
+  within one account. It must re-check each message's Message-ID inside the mail program
+  right before moving and skip any mismatch, so a stale or reused native id cannot move a
+  different message.
+
+`actions.py` re-lists the mailbox, matches messages to current decisions by identity, applies
+the guards (current settings, same mailbox, `keep_in_place`, `validate_destination()`, not
+moved before), journals each move as `planned` before it happens and marks it `applied` or
+`failed`. Undo lists the destination folder and moves journaled messages back.
+
+Apple Mail implements `Mover` with two fixed JXA scripts (`_ENSURE`, `_MOVE` in
+`applemail.py`). Keep the rule: **no delete, no trash, no flag or read-state changes**.
+`tests/test_privacy_safety.py` checks this.
 
 ## Ideas that fit the design
 

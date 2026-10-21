@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import os
 from pathlib import Path
 import platform
@@ -10,10 +11,10 @@ import shutil
 import subprocess
 import sys
 
-from . import __version__, config as configmod, privacy, provision, report
+from . import __version__, actions, config as configmod, privacy, provision, report
 from .backends import BackendError, create
 from .config import ConfigError
-from .connectors.base import ConnectorError
+from .connectors.base import ConnectorError, Mover
 from .engine import Engine, ScanOptions
 from .store import Store
 
@@ -208,10 +209,13 @@ def cmd_report(args) -> int:
 
 def cmd_categories(args) -> int:
     config = configmod.load(Path(args.config) if args.config else None)
-    print(f"{'category':14} {'action':7} {'future folder':22} description")
+    folders = actions.destinations(config)
+    print(f"{'category':14} {'action':7} {'apply moves to':22} description")
     for c in config.categories:
-        print(f"{c.name:14} {c.action:7} {c.folder or '(stays in inbox)':22} {c.description}")
-    print(f"{'review':14} {'review':7} {config.policy['review_folder']:22} model is unsure (likely junk)")
+        print(f"{c.name:14} {c.action:7} {folders[c.name] or '(stays where it is)':22} {c.description}")
+    print(f"{'review':14} {'review':7} {folders['review']:22} model is unsure (likely junk)")
+    print(f"\nMoving is {'on' if config.actions['enabled'] else 'off'} ([actions] enabled); "
+          f"never moved: {', '.join(config.actions['keep_in_place']) or 'none'}")
     return 0
 
 
@@ -267,10 +271,87 @@ def cmd_forget(args) -> int:
     return 0
 
 
+def _mover(args):
+    connector = _connector(args)
+    if not isinstance(connector, Mover):
+        raise ConnectorError(f"the {connector.name} source cannot move mail; moving works with Apple Mail "
+                             "(Outlook: see docs/OUTLOOK_ADDIN.md › Limits)")
+    return connector
+
+
 def cmd_apply(args) -> int:
-    print("Moving emails is not available yet. Today mail-triage only decides and shows the folder plan "
-          "in the report. It will never delete email.")
-    return 1
+    """Show the move plan, then (after confirmation) move decided mail into its folders."""
+    privacy.install_network_guard()
+    config = configmod.load(Path(args.config) if args.config else None)
+    console = args.console or config.privacy["console"]
+    connector = _mover(args)
+    store = _store()
+    try:
+        plans = [actions.plan(config, store, connector, mailbox)
+                 for mailbox in connector.mailboxes(tuple(args.account or ()), args.mailbox)]
+        if args.limit is not None:
+            actions.limit(plans, args.limit)
+        actions.show(plans, console)
+        total = sum(len(p.moves) for p in plans)
+        folders = {(p.mailbox.account, folder) for p in plans for folder in p.by_folder()}
+        if not total:
+            print("\nNothing to move.")
+            return 0
+        if args.dry_run:
+            print(f"\nDry run: {total} emails would move into {len(folders)} folders. Nothing was moved.")
+            return 0
+        if not config.actions["enabled"]:
+            print(f"\nMoving is switched off. To allow it, set  enabled = true  under [actions] in "
+                  f"{config.path or configmod.home() / 'config.toml'}, then run ./triage apply again.")
+            return 1
+        if not _ask(f"\nMove {total} emails into {len(folders)} folders? Missing folders are created; "
+                    "nothing is deleted.", args.yes):
+            print("Nothing moved.")
+            return 1
+        run = store.start_run(f"apply:{connector.name}")
+        counts = Counter()
+        try:
+            actions.apply(store, connector, plans, run, counts=counts,
+                          flat_separator=config.actions["exchange_flat_separator"])
+        finally:
+            store.finish_run(run, dict(counts))
+        notes = [f"created {counts['folders_created']} folders"] if counts["folders_created"] else []
+        if counts["not_moved"]:
+            notes.append(f"{counts['not_moved']} changed or gone meanwhile (not moved)")
+        if counts["folder_failed"]:
+            notes.append(f"{counts['folder_failed']} not moved because a folder could not be created "
+                         "(run ./triage apply again once Mail has finished)")
+        print(f"\nMoved {counts['moved']} emails{'; ' + ', '.join(notes) if notes else ''}.  Undo: ./triage undo")
+        print("Mail finishes the moves in the background and may be slow until it is done (its activity "
+              "shows \"Moving messages\").")
+        return 1 if counts["folder_failed"] else 0
+    finally:
+        store.commit()
+        store.close()
+
+
+def cmd_undo(args) -> int:
+    """Move the emails of the last apply (or of every apply with --all) back where they came from."""
+    privacy.install_network_guard()
+    connector = _mover(args)
+    store = _store()
+    try:
+        pending = store.moves_to_undo(connector.name, args.account, args.all, args.into)
+        if not pending:
+            print("Nothing to undo.")
+            return 0
+        scope = ("all applies" if args.all else "the last apply") + (f" into {args.into}" if args.into else "")
+        if not _ask(f"Move {len(pending)} emails from {scope} back to the mailbox they came from?", args.yes):
+            print("Nothing moved.")
+            return 1
+        counts = actions.undo(store, connector, args.account, args.all, args.into)
+        gone = counts["not_found"]
+        print(f"Moved {counts['moved_back']} emails back"
+              + (f"; {gone} were no longer in their folder (left where they are)." if gone else "."))
+        return 0
+    finally:
+        store.commit()
+        store.close()
 
 
 def cmd_start(args) -> int:
@@ -436,14 +517,27 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--verbose", action="store_true", help="run: log per-message status lines (never content)")
     s.add_argument("--no-open", action="store_true", help="install: do not open Finder/Outlook")
     s.add_argument("--yes", action="store_true", help="install: download the model without asking")
-    sub.add_parser("apply", help="(future) move emails to their folders")
+    s = sub.add_parser("apply", help="move decided emails into their category folders (shows the plan, asks first)")
+    source(s)
+    s.add_argument("--account", action="append", help="only this account (repeatable)")
+    s.add_argument("--mailbox", help="mailbox inside --account that was scanned (default: inbox)")
+    s.add_argument("--limit", type=int, help="move at most N emails (try a few first)")
+    s.add_argument("--dry-run", action="store_true", help="only show what would move")
+    s.add_argument("--yes", action="store_true", help="move without asking")
+    s.add_argument("--console", choices=configmod.CONSOLE, help="what to print per email")
+    s = sub.add_parser("undo", help="move the emails of the last apply back")
+    source(s)
+    s.add_argument("--account", action="append", help="only this account (repeatable)")
+    s.add_argument("--all", action="store_true", help="undo every apply, not only the last one")
+    s.add_argument("--into", metavar="FOLDER", help="only emails moved into this folder, e.g. Laya/Review")
+    s.add_argument("--yes", action="store_true", help="move back without asking")
     sub.add_parser("help", help="show this help")
     return p
 
 
 COMMANDS = {"start": cmd_start, "setup": cmd_setup, "doctor": cmd_doctor, "scan": cmd_scan, "report": cmd_report,
             "categories": cmd_categories, "teach": cmd_teach, "forget": cmd_forget, "apply": cmd_apply,
-            "addin": cmd_addin}
+            "undo": cmd_undo, "addin": cmd_addin}
 
 
 def main(argv: list[str] | None = None) -> int:

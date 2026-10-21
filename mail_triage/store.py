@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS teachings(
     id INTEGER PRIMARY KEY, created_at TEXT NOT NULL,
     kind TEXT NOT NULL CHECK(kind IN ('sender', 'domain')), value TEXT NOT NULL, category TEXT NOT NULL,
     UNIQUE(kind, value));
--- Journal for the future move feature: every planned/applied move, so it can be undone.
+-- Journal of `./triage apply`: every planned/applied move, so it can be undone. detail is JSON
+-- {"run": runs.id, "error": ...}.
 CREATE TABLE IF NOT EXISTS actions(
     id INTEGER PRIMARY KEY, key TEXT NOT NULL, created_at TEXT NOT NULL,
     from_mailbox TEXT NOT NULL, to_folder TEXT NOT NULL,
@@ -104,6 +105,9 @@ class Store:
     def current(self, key: str):
         return self.db.execute(
             "SELECT * FROM decisions WHERE key = ? AND current = 1", (key,)).fetchone()
+
+    def message(self, key: str):
+        return self.db.execute("SELECT * FROM messages WHERE key = ?", (key,)).fetchone()
 
     def needs_decision(self, key: str, mode: str, fingerprint: str) -> bool:
         """mode: new = only never-seen mail; changed = also mail decided under older settings; all."""
@@ -200,6 +204,51 @@ class Store:
             if row:
                 return row
         return None
+
+    # -- move journal (./triage apply / undo) ------------------------------------------------
+
+    def journal(self, key: str, from_mailbox: str, to_folder: str, run_id: int) -> int:
+        """Record a move before it happens. An older unfinished entry for the key was interrupted."""
+        self.db.execute("UPDATE actions SET status = 'failed' WHERE key = ? AND status = 'planned'", (key,))
+        cursor = self.db.execute(
+            "INSERT INTO actions(key, created_at, from_mailbox, to_folder, status, detail) VALUES (?, ?, ?, ?, 'planned', ?)",
+            (key, now(), from_mailbox, to_folder, json.dumps({"run": run_id})))
+        return cursor.lastrowid
+
+    def finish_action(self, action_id: int, status: str, error: str = "") -> None:
+        row = self.db.execute("SELECT detail FROM actions WHERE id = ?", (action_id,)).fetchone()
+        detail = {**json.loads(row["detail"] or "{}"), **({"error": error} if error else {})}
+        self.db.execute("UPDATE actions SET status = ?, detail = ? WHERE id = ?",
+                        (status, json.dumps(detail), action_id))
+
+    def last_move(self, key: str):
+        """Latest move of a message that took effect (applied, or applied then undone), or None."""
+        return self.db.execute(
+            "SELECT * FROM actions WHERE key = ? AND status IN ('applied', 'undone') ORDER BY id DESC LIMIT 1",
+            (key,)).fetchone()
+
+    def moves_to_undo(self, connector: str, accounts: list[str] | None = None, all_runs: bool = False,
+                      folder: str | None = None) -> list[sqlite3.Row]:
+        """Moves that may be in effect (applied, or planned and interrupted), newest apply run only
+        unless all_runs, optionally only those into `folder`. Joined with the message's account."""
+        sql = ("SELECT a.*, m.account FROM actions a JOIN messages m ON m.key = a.key"
+               " WHERE m.connector = ? AND a.status IN ('applied', 'planned')")
+        args: list = [connector]
+        if folder:
+            sql += " AND a.to_folder = ?"
+            args.append(folder.strip("/"))
+        if accounts:
+            sql += f" AND m.account IN ({','.join('?' * len(accounts))})"
+            args += accounts
+        rows = self.db.execute(sql + " ORDER BY a.id", args).fetchall()
+        if all_runs or not rows:
+            return rows
+        last = max(json.loads(row["detail"]).get("run", 0) for row in rows)
+        return [row for row in rows if json.loads(row["detail"]).get("run", 0) == last]
+
+    def set_location(self, key: str, mailbox: str) -> None:
+        """Where a message is after a move. Its native id is unknown until it is listed there again."""
+        self.db.execute("UPDATE messages SET mailbox = ?, native_id = '' WHERE key = ?", (mailbox, key))
 
     # -- reporting ---------------------------------------------------------------------------
 

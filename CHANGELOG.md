@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Moving mail into folders** (Apple Mail): `./triage apply` shows the plan and, after you
+  confirm, moves decided mail into its category folder. Missing folders are created inside the
+  same account. `--dry-run` only shows the plan, and `./triage undo [--all]` moves the last
+  apply (or all of them) back. Off until `[actions] enabled = true`.
+- `[actions] keep_in_place` (default `["personal", "work"]`): categories that never move. Add
+  `"review"` to keep uncertain mail in the inbox; `review_folder = ""` works too.
+- **Interactive report**: clickable overview bars for decisions and for who decided (model,
+  memory, rule, teaching) that cross-filter each other, full-text search over sender, domain
+  and subject, filters for decision, category, likelihood and decided-by, and sortable
+  columns. Still one offline file: data is inert JSON, the only script is pinned by its hash in
+  the Content-Security-Policy, and mail text is inserted as text only.
+- `apply --limit N` reports how many more messages are ready for a later run.
+- Exchange accounts in Mail: nested folders are found (and reused on every run), but Mail cannot
+  create them there by script. A missing one is reported with what to do: create it once in
+  Outlook on the web, or set `[actions] exchange_flat_separator = "-"` to create and use a
+  top-level `Laya-Newsletters` instead. Nothing is created under a wrong name any more. IMAP
+  and iCloud accounts keep the creation method that worked.
+- `undo --into FOLDER` moves back only the emails moved into one folder (e.g. `Laya/Review`).
+- Creating a folder waits up to 30 s for Mail to show it (Mail creates folders in the
+  background, slowly while it is busy moving). A folder that still does not appear is skipped
+  and reported, and the other folders and mailboxes continue; the run's counts are kept even
+  when a move fails.
+- Every move is journaled before it happens. A message moves only if it is still in the
+  mailbox where it was decided, was decided with the current settings, has a Message-ID
+  that Mail re-checks just before the move, and was not moved (or moved back) before.
+  Nothing is deleted, flagged or marked as read.
+
+### Changed
+
+- With `[actions] enabled = true`, settings are refused if a category or review folder is
+  outside `allowed_root`/`also_allowed` or is a Trash/Junk folder.
+- `connectors.base.Mover` is now `ensure_folder()` plus a batch `move()` that verifies
+  Message-IDs.
+
 ## 1.1.0 — 2026-10-21
 
 ### Added

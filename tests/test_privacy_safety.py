@@ -52,7 +52,7 @@ class NetworkGuardTest(unittest.TestCase):
 
     def test_every_command_touching_mail_installs_the_guard(self):
         source = (PACKAGE / "cli.py").read_text()
-        for command in ("cmd_scan", "cmd_report", "cmd_doctor", "cmd_teach"):
+        for command in ("cmd_scan", "cmd_report", "cmd_doctor", "cmd_teach", "cmd_apply", "cmd_undo"):
             body = source.split(f"def {command}(")[1].split("\ndef ")[0]
             self.assertIn("install_network_guard()", body, command)
         worker = (PACKAGE / "mlx_worker.py").read_text()
@@ -72,8 +72,19 @@ class NoDeletionTest(unittest.TestCase):
     def test_no_code_can_delete_or_trash_mail(self):
         forbidden = re.compile(r"\.(delete|trash|expunge)\(|deleteMessage|\bdelete\s*\(|junk mail status|"
                                r"set deleted|flag.*deleted|move to trash", re.I)
-        for path in (PACKAGE / "connectors").rglob("*.py"):
+        for path in [*(PACKAGE / "connectors").rglob("*.py"), PACKAGE / "actions.py"]:
             self.assertIsNone(forbidden.search(path.read_text()), path.name)
+
+    def test_moves_verify_identity_and_only_mailboxes_are_created(self):
+        from mail_triage.connectors import applemail
+        self.assertIn("msg.messageId() !== argv[i + 1]", applemail._MOVE)
+        self.assertLess(applemail._MOVE.index("messageId()"), applemail._MOVE.index("Mail.move("))
+        writes = re.compile(r"\.(push|make|move|set)\w*\(|\.(readStatus|flaggedStatus|junkMailStatus)\b")
+        for name in ("_INBOXES", "_EXISTS", "_LIST", "_FETCH"):
+            self.assertIsNone(writes.search(getattr(applemail, name)), name)
+        self.assertEqual(writes.findall(applemail._ENSURE), [("push", "")])
+        self.assertIsNone(writes.search(applemail._RESOLVE), "_RESOLVE")
+        self.assertNotRegex(applemail._MOVE, r"readStatus|flaggedStatus|junkMailStatus|mailboxes\.push")
 
     def test_destinations_are_restricted(self):
         actions = default_config().actions

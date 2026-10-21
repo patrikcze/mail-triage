@@ -12,3 +12,4 @@ config.toml
 *.eml
 !tests/fixtures/**/*.eml
 *.mbox
+.DS_Store

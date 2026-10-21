@@ -61,7 +61,7 @@ permissions are configured by this implementation.
 name = "invoices"                       # letters, digits, _
 description = "invoice or bill that I have to pay"   # the AI reads this text
 action = "keep"                         # keep | review | junk
-folder = "Finance/Invoices"             # future destination ("" = stay in inbox)
+folder = "Finance/Invoices"             # where ./triage apply moves it ("" = stays where it is)
 coarse = ""                             # personal | transactional | marketing | ""
 ```
 
@@ -73,9 +73,9 @@ coarse = ""                             # personal | transactional | marketing |
   categories only the English model should pick.
 - At most 16 categories. Keep at least one `keep` and one `junk` category.
 
-Moving into `folder` is not implemented yet. Folders must sit under `actions.allowed_root`
-(default `Laya/`) or be listed in `actions.also_allowed`, and can never be Trash, Junk or
-Deleted.
+`./triage apply` moves mail into `folder` (see [Actions](#actions-moving-mail)). Folders must
+sit under `actions.allowed_root` (default `Laya/`) or be listed in `actions.also_allowed`, and
+can never be Trash, Junk or Deleted.
 
 ## Rules
 
@@ -167,6 +167,47 @@ recheck_every = 10  # still ask the AI every 10th time
 ```
 
 Receipts, notices and account mail from a known sender always get the full check.
+
+## Actions (moving mail)
+
+```toml
+[actions]
+enabled = false               # true = ./triage apply may move mail (it still shows the plan and asks)
+allowed_root = "Laya/"        # destinations must be under this prefix …
+also_allowed = []             # … or one of these exact folders, e.g. ["Finance/Invoices"]
+forbidden = ["Trash", "Deleted Messages", "Deleted Items", "Koš", "Junk", "Spam", "Bin"]
+keep_in_place = ["personal", "work"]   # never moved, even if they have a folder
+exchange_flat_separator = ""  # "-" = on Exchange, create top-level Laya-Newsletters if Laya/Newsletters is missing
+```
+
+Apple Mail cannot create nested folders on Exchange accounts by script: its scripting dictionary
+covers POP, IMAP and iCloud accounts, and on Exchange a path becomes one folder literally named
+`Laya/Newsletters`, while creating inside a parent fails. Nested folders you create yourself
+(Outlook on the web works) are found and used. With `exchange_flat_separator = "-"`, a missing
+folder on Exchange is created at the top level as `Laya-Newsletters` instead; journal and `undo`
+use the folder actually used.
+
+Where each category goes by default (`./triage categories` shows your own settings):
+
+| Category | Moves to |
+| --- | --- |
+| personal, work | stays where it is (`keep_in_place`) |
+| transactional, notification | stays where it is (no folder) |
+| newsletter / promotion / spam | `Laya/Newsletters` / `Laya/Promotions` / `Laya/Spam` |
+| review (unsure) | `policy.review_folder`, `Laya/Review` |
+
+Add `"review"` to `keep_in_place` to leave mail the model is unsure about in the inbox (a good
+first step). To move receipts or notifications too, give the category a folder, e.g.
+`folder = "Laya/Notifications"`. With `enabled = true`, `./triage doctor` refuses folders that
+break the `[actions]` limits.
+
+Running `apply` again is safe: existing folders are reused, messages already moved are no longer
+in the scanned mailbox, and a message is never moved twice unless it was re-decided since. `undo`
+reverses each journaled move once. A message moves only if it is still in the mailbox where it was decided, was decided with the
+current settings (otherwise run `./triage scan --rescan-changed` first), has a Message-ID
+(checked again inside Mail just before the move), and was not moved before. Mail you moved back
+with `./triage undo` stays where it is until it is re-decided. Moving works with Apple Mail;
+`apply --account NAME --mailbox PATH` applies the decisions of a scan of that mailbox.
 
 ## Privacy
 

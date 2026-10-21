@@ -5,15 +5,15 @@
 # After editing run:  ./triage doctor   (checks the file)  and  ./triage scan --rescan-changed
 
 # ---------------------------------------------------------------------------------------------
-# Categories: what the model chooses between, what each one means for you, and where matching
-# mail will be moved once moving is switched on (not implemented yet — today it is a preview).
+# Categories: what the model chooses between, what each one means for you, and where
+# `./triage apply` moves matching mail (see [actions] at the end; off until you switch it on).
 #
 #   name         short id, letters/digits/_ only
 #   description  plain-language hint for the model; this text is what Laya reads
 #   action       keep   = it is for you
 #                review = show it to me, do not decide
 #                junk   = promo, marketing, spam … (only when the model is "highly likely" sure)
-#   folder       future destination, inside the same mail account ("" = stays in the inbox)
+#   folder       destination inside the same mail account ("" = stays where it is)
 #   coarse       personal | transactional | marketing — which broad bucket the multilingual
 #                model (non-English mail) maps to this category; the first category of each
 #                bucket receives it. "" = only the English model can pick this category.
@@ -180,10 +180,20 @@ console = "redacted"          # full | redacted | counts — what scan prints to
 retention_days = 365          # older history is deleted automatically (0 = keep forever)
 
 # ---------------------------------------------------------------------------------------------
-# Actions (future): moving mail is NOT implemented yet. Deleting mail is never possible.
+# Actions: `./triage apply` moves decided mail into each category's folder (Apple Mail).
+# It always shows the plan and asks first; `./triage apply --dry-run` only shows it, and
+# `./triage undo` moves the last apply back. Missing folders are created inside the same mail
+# account. Deleting, flagging or marking mail is never possible.
 # ---------------------------------------------------------------------------------------------
 [actions]
-enabled = false
+enabled = false               # true = allow ./triage apply to move mail (it still asks first)
 allowed_root = "Laya/"        # moves will only ever go to folders under this prefix …
 also_allowed = []             # … or to these exact folders, e.g. ["Finance/Invoices"]
 forbidden = ["Trash", "Deleted Messages", "Deleted Items", "Koš", "Junk", "Spam", "Bin"]
+# These categories never move, even if they have a folder: mail written to you stays in the
+# mailbox it was scanned in.
+keep_in_place = ["personal", "work"]
+# Exchange accounts in Apple Mail cannot get subfolders by script. "" = use Laya/Newsletters only
+# if you created it yourself (e.g. in Outlook on the web); "-" = otherwise create and use a
+# top-level folder Laya-Newsletters there. Existing nested folders are always preferred.
+exchange_flat_separator = ""
