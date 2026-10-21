@@ -85,7 +85,10 @@ identity, and never switches Outlook modes to work around policy.
 
 ## What you'll see
 
-The report (`report-….html`, opened in your browser) has three groups:
+The report (`report-….html`, opened in your browser) is interactive: an overview of decisions and
+of who decided (AI model, sender memory, rules, teachings) where a click on a bar filters the list,
+a search box for sender, domain or subject, filters for decision, category, likelihood and
+"decided by", and sortable columns. It works offline and loads nothing. Emails fall in three groups:
 
 | Group | Meaning | `./triage apply` moves it to |
 | --- | --- | --- |

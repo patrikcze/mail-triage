@@ -48,7 +48,10 @@ safeguards. It is written for users and for whoever assesses the tool under the 
   file are mode 0600. SQLite runs with `secure_delete`, so erased rows are overwritten, and
   `forget` rewrites the file (VACUUM).
 - **Reports load nothing from the web.** The HTML report sets
-  `Content-Security-Policy: default-src 'none'`.
+  `Content-Security-Policy: default-src 'none'`, so it cannot fetch or send anything. Its single
+  inline script (filters, sorting, overview bars) is allowed only by its SHA-256 hash, the email
+  data sits in an inert JSON block, and subjects and senders are inserted as text, never as
+  markup, so a crafted email cannot run code in the report.
 - **Injection-safe output.** CSV cells that could act as spreadsheet formulas are neutralised,
   and control characters are stripped before anything is printed to the terminal.
 - **Errors do not leak content.** Error messages name the problem type, never the email text.

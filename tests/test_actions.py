@@ -138,6 +138,22 @@ class ActionsTest(unittest.TestCase):
         self.scan()
         self.assertEqual(list(self.plan().by_folder()), ["Laya/Review"])
 
+    def test_review_can_stay_in_place(self):
+        self.store.teach("domain", "gadgets.example.com", "review")
+        base = default_config()
+        config = default_config(actions={**base.actions, "enabled": True,
+                                         "keep_in_place": ["personal", "work", "review"]})
+        self.scan(config)
+        plan = self.plan(config)
+        self.assertEqual((plan.moves, plan.stay["review"]), ([], 3))
+        self.assertEqual(actions.destinations(config)["review"], "")
+
+    def test_limit_reports_what_is_left(self):
+        self.scan()
+        plan = self.plan()
+        actions.limit([plan], 1)
+        self.assertEqual((len(plan.moves), plan.held), (1, 2))
+
     def test_stale_and_undecided_mail_is_not_moved(self):
         self.assertEqual(self.plan().skipped[actions.NOT_DECIDED], 4)
         self.scan()
@@ -214,6 +230,9 @@ class ConfigGuardTest(unittest.TestCase):
                 self.load(text)
         with self.assertRaises(configmod.ConfigError):
             self.load("[actions]\nenabled = \"yes\"\n")
+        kept = self.load('[actions]\nenabled = true\nkeep_in_place = ["personal", "work", "review"]\n'
+                         '[policy]\nreview_folder = ""\n')
+        self.assertEqual(actions.destinations(kept)["review"], "")
 
 
 class CliTest(unittest.TestCase):

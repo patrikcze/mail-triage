@@ -48,6 +48,7 @@ class Plan:
     moves: list[PlannedMove] = field(default_factory=list)
     stay: Counter = field(default_factory=Counter)       # category → messages that stay
     skipped: Counter = field(default_factory=Counter)    # reason → messages not considered
+    held: int = 0                                         # ready to move, left for a later apply by --limit
 
     def by_folder(self) -> dict[str, list[PlannedMove]]:
         groups: dict[str, list[PlannedMove]] = defaultdict(list)
@@ -60,7 +61,7 @@ def destinations(config: Config) -> dict[str, str]:
     """Category (and "review") → folder it moves to; "" = stays where it is."""
     keep = set(config.actions.get("keep_in_place", []))
     result = {c.name: "" if c.name in keep else c.folder for c in config.categories}
-    result["review"] = config.policy["review_folder"]
+    result["review"] = "" if "review" in keep else config.policy["review_folder"]
     return result
 
 
@@ -109,13 +110,16 @@ def plan(config: Config, store: Store, connector, mailbox: Mailbox) -> Plan:
 def limit(plans: list[Plan], n: int) -> None:
     """Keep only the first n moves across all plans (the rest stay for a later apply)."""
     for item in plans:
-        item.moves, n = item.moves[:max(n, 0)], max(n - len(item.moves), 0)
+        keep = max(n, 0)
+        item.held = max(len(item.moves) - keep, 0)
+        item.moves, n = item.moves[:keep], max(n - len(item.moves), 0)
 
 
 def show(plans: list[Plan], console: str, out: Callable[[str], None] = print) -> None:
     for number, item in enumerate(plans, 1):
         label = item.mailbox.label if console == "full" else f"mailbox {number}"
-        out(f"{label}: {item.seen} messages, {len(item.moves)} to move")
+        held = f" ({item.held} more ready, left for later by --limit)" if item.held else ""
+        out(f"{label}: {item.seen} messages, {len(item.moves)} to move{held}")
         for folder, moves in item.by_folder().items():
             out(f"  → {folder:28} {len(moves):5}")
             if console == "counts":

@@ -216,7 +216,9 @@ def _validate(raw: dict) -> Config:
         from .connectors.base import validate_destination
         keep = set(actions["keep_in_place"])
         targets = [(f"categories {c.name}.folder", c.folder) for c in categories if c.folder and c.name not in keep]
-        for where, folder in targets + [("policy.review_folder", str(policy["review_folder"]))]:
+        if policy["review_folder"] and "review" not in keep:
+            targets.append(("policy.review_folder", str(policy["review_folder"])))
+        for where, folder in targets:
             try:
                 validate_destination(folder, actions)
             except ValueError as exc:

@@ -8,7 +8,14 @@
   confirm, moves decided mail into its category folder. Missing folders are created inside the
   same account. `--dry-run` only shows the plan, and `./triage undo [--all]` moves the last
   apply (or all of them) back. Off until `[actions] enabled = true`.
-- `[actions] keep_in_place` (default `["personal", "work"]`): categories that never move.
+- `[actions] keep_in_place` (default `["personal", "work"]`): categories that never move. Add
+  `"review"` to keep uncertain mail in the inbox; `review_folder = ""` works too.
+- **Interactive report**: clickable overview bars for decisions and for who decided (model,
+  memory, rule, teaching) that cross-filter each other, full-text search over sender, domain
+  and subject, filters for decision, category, likelihood and decided-by, and sortable
+  columns. Still one offline file: data is inert JSON, the only script is pinned by its hash in
+  the Content-Security-Policy, and mail text is inserted as text only.
+- `apply --limit N` reports how many more messages are ready for a later run.
 - Every move is journaled before it happens. A message moves only if it is still in the
   mailbox where it was decided, was decided with the current settings, has a Message-ID
   that Mail re-checks just before the move, and was not moved (or moved back) before.

@@ -188,7 +188,8 @@ Where each category goes by default (`./triage categories` shows your own settin
 | newsletter / promotion / spam | `Laya/Newsletters` / `Laya/Promotions` / `Laya/Spam` |
 | review (unsure) | `policy.review_folder`, `Laya/Review` |
 
-To move receipts or notifications too, give the category a folder, e.g.
+Add `"review"` to `keep_in_place` to leave mail the model is unsure about in the inbox (a good
+first step). To move receipts or notifications too, give the category a folder, e.g.
 `folder = "Laya/Notifications"`. With `enabled = true`, `./triage doctor` refuses folders that
 break the `[actions]` limits.
 
