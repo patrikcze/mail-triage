@@ -1,8 +1,10 @@
-"""Apple Mail (macOS) through JavaScript for Automation (osascript -l JavaScript). Read-only.
+"""Apple Mail (macOS) through JavaScript for Automation (osascript -l JavaScript).
 
-The scripts below are constants; account names, mailbox names and message ids are passed as
-arguments, never pasted into code, so no mail data can inject script. Needs the Automation
-permission for the terminal (System Settings › Privacy & Security › Automation › Mail).
+Reads mail, and for `./triage apply` only: creates destination mailboxes and moves messages
+(never deletes, flags or marks as read). The scripts below are constants; account names,
+mailbox names and message ids are passed as arguments, never pasted into code, so no mail data
+can inject script. Needs the Automation permission for the terminal (System Settings › Privacy
+& Security › Automation › Mail).
 """
 
 from __future__ import annotations
@@ -43,6 +45,49 @@ function run(argv) {
   }
   return JSON.stringify(out);
 }"""
+# Creates each missing level of argv[1] ("Laya/Newsletters" → "Laya", then "Laya/Newsletters")
+# inside the account, so it is created on the mail server, not "On My Mac".
+_ENSURE = """
+function run(argv) {
+  const Mail = Application('Mail');
+  const account = Mail.accounts.byName(argv[0]);
+  account.name();
+  function exists(path) {
+    try { account.mailboxes.byName(path).name(); return true; } catch (e) { return false; }
+  }
+  const parts = argv[1].split('/');
+  let created = false;
+  for (let i = 1; i <= parts.length; i++) {
+    const path = parts.slice(0, i).join('/');
+    if (exists(path)) continue;
+    account.mailboxes.push(Mail.Mailbox({name: path}));
+    created = true;
+  }
+  if (!exists(argv[1])) throw new Error('mailbox was not created');
+  return JSON.stringify(created);
+}"""
+# argv: account, source mailbox, destination mailbox, then pairs of (message id, Message-ID).
+# A message is moved only when its Message-ID still matches the one it was decided under.
+_MOVE = """
+function run(argv) {
+  const Mail = Application('Mail');
+  const account = Mail.accounts.byName(argv[0]);
+  const source = account.mailboxes.byName(argv[1]);
+  const target = account.mailboxes.byName(argv[2]);
+  source.name();
+  target.name();
+  const moved = [];
+  for (let i = 3; i + 1 < argv.length; i += 2) {
+    try {
+      const msg = source.messages.byId(Number(argv[i]));
+      if (msg.messageId() !== argv[i + 1]) continue;
+      Mail.move(msg, {to: target});
+      moved.push(argv[i]);
+    } catch (e) { }
+  }
+  return JSON.stringify(moved);
+}"""
+MOVE_BATCH = 25
 
 
 def _run(script: str, *args: str, timeout: float = 600):
@@ -91,3 +136,15 @@ class AppleMailConnector:
         for start in range(0, len(native_ids), FETCH_BATCH):
             sources.update(_run(_FETCH, mailbox.account, mailbox.name, *native_ids[start:start + FETCH_BATCH]))
         return sources
+
+    # -- write side (./triage apply only) -----------------------------------------------------
+
+    def ensure_folder(self, account: str, folder: str) -> bool:
+        return bool(_run(_ENSURE, account, folder, timeout=120))
+
+    def move(self, mailbox: Mailbox, items: list[tuple[str, str]], folder: str) -> list[str]:
+        moved = []
+        for start in range(0, len(items), MOVE_BATCH):
+            pairs = [value for pair in items[start:start + MOVE_BATCH] for value in pair]
+            moved += _run(_MOVE, mailbox.account, mailbox.name, folder, *pairs)
+        return moved

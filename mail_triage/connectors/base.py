@@ -5,9 +5,10 @@ Read side (all connectors):
     list(mailbox)               cheap metadata of every message (no body)
     fetch_sources(mailbox, ids) raw RFC 822 source of a few messages
 
-Write side (future, optional): a connector may also implement Mover. It has exactly one
-operation, move(). There is deliberately no delete, trash, expunge or flag method anywhere,
-and validate_destination() refuses trash/junk folders and anything outside the configured root.
+Write side (optional): a connector may also implement Mover: ensure_folder() creates a missing
+destination folder, move() moves messages. There is deliberately no delete, trash, expunge or
+flag method anywhere, and validate_destination() refuses trash/junk folders and anything
+outside the configured root. actions.py is the only caller.
 """
 
 from __future__ import annotations
@@ -57,9 +58,19 @@ class Connector(Protocol):
 
 @runtime_checkable
 class Mover(Protocol):
-    """Future write side. Moving is the only mutation mail-triage will ever perform."""
+    """Write side. Moving (and creating its destination folder) is the only mutation mail-triage performs."""
 
-    def move(self, mailbox: Mailbox, native_id: str, folder: str) -> None: ...
+    def ensure_folder(self, account: str, folder: str) -> bool:
+        """Make sure `folder` exists in `account`, creating it (and its parents) if missing.
+        Returns True if something was created. Never renames or deletes folders."""
+        ...
+
+    def move(self, mailbox: Mailbox, items: list[tuple[str, str]], folder: str) -> list[str]:
+        """Move (native id, Message-ID) pairs from `mailbox` to `folder` in the same account.
+
+        A message is moved only if its Message-ID still matches, so a reused or stale native id
+        can never move a different message. Returns the native ids that were moved."""
+        ...
 
 
 def validate_destination(folder: str, actions: dict) -> str:

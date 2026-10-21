@@ -27,7 +27,8 @@
 | `rules.py` / `learning.py` | Shortcuts that decide without fetching the message. |
 | `store.py` | SQLite: messages, versioned decisions, sender stats, teachings, action journal, runs. |
 | `report.py` | CSV plus self-contained HTML. |
-| `connectors/` | Mail sources (`base.py` defines the protocol and the future `Mover`). |
+| `connectors/` | Mail sources (`base.py` defines the protocol and the optional `Mover`; Apple Mail implements it). |
+| `actions.py` | `./triage apply`/`undo`: which decided messages may move where, journal, undo. The only caller of `Mover`. |
 | `addin/` | Outlook add-in: task pane (`static/`), localhost HTTPS helper (`server.py`, uses `Engine.decide_one`), certificate (`certs.py`), macOS LaunchAgent (`service.py`). Nothing in the mail-client scan path imports it. |
 | `backends/` | Model backends (`base.py` defines the protocol, answer validation and language routing). |
 | `provision.py` | MLX runtime and pinned checkpoint download (used by `setup` only). |
@@ -68,5 +69,5 @@ unimplemented/blocked pending authorization.
 | `sender_stats` | per sender address and category: number of authoritative decisions |
 | `sender_memory` | reuse counter per sender (drives the periodic re-check) |
 | `teachings` | user corrections by sender or domain |
-| `actions` | journal for the future move feature: planned/applied/undone moves, for undo |
+| `actions` | journal of `./triage apply`: planned/applied/undone/failed moves, for undo |
 | `runs` | when scans ran and what they did (counts only) |

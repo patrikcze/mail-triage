@@ -5,9 +5,10 @@
 your computer**. Classification never sends mail to an external AI service. Python/model
 connections are restricted to this computer; your mail client may still synchronize normally.
 
-It never deletes anything. Today it only **decides and shows you** what it would do, in a
-report. Moving mail into folders (`Laya/Promotions`, `Laya/Newsletters`, …) is planned and
-already previewed in the report.
+It never deletes anything. It **decides and shows you** what it would do, in a report. When
+you switch it on, `./triage apply` moves junk into folders (`Laya/Promotions`,
+`Laya/Newsletters`, …) in Apple Mail, after showing the plan and asking. Mail written to you
+stays where it is, and `./triage undo` moves everything back.
 
 > It is not a spam filter for your mail server. It tidies up mail that has already arrived.
 
@@ -86,7 +87,7 @@ identity, and never switches Outlook modes to work around policy.
 
 The report (`report-….html`, opened in your browser) has three groups:
 
-| Group | Meaning | Future folder |
+| Group | Meaning | `./triage apply` moves it to |
 | --- | --- | --- |
 | **For you** | personal, work, receipts, bills, security alerts, contracts | stays in your inbox |
 | **To review** | probably junk, but the AI is not sure enough | `Laya/Review` |
@@ -101,6 +102,29 @@ Mail Triage is careful by design:
   the headers that bulk senders must include.
 - Receipts, orders, invoices, bank statements, login codes, security alerts, contracts and
   terms changes are **never** junk.
+
+## Moving mail into folders (Apple Mail)
+
+Moving is off until you switch it on. Set `enabled = true` under `[actions]` in your
+`config.toml`, then:
+
+```sh
+./triage apply --dry-run     # show what would move; changes nothing
+./triage apply --limit 5     # move only five first, to see it work
+./triage apply               # show the plan, ask, then move
+./triage undo                # move the emails of the last apply back
+```
+
+- Missing folders (`Laya/`, `Laya/Promotions`, …) are created inside the same mail account, so
+  they sync to your mail server like any folder you create yourself.
+- **Personal and work mail never moves** (`keep_in_place`), and neither do receipts,
+  notifications or anything else whose category has no folder. They stay in the mailbox
+  that was scanned.
+- Only mail decided with your current settings moves, and only from the mailbox where it was
+  decided. Mail you moved yourself, and mail you moved back with `undo`, is left alone.
+- Nothing is ever deleted, flagged or marked as read. Every move is journaled for `undo`.
+
+Outlook cannot move mail through the add-in; see [docs/OUTLOOK_ADDIN.md](docs/OUTLOOK_ADDIN.md#limits).
 
 ## Correcting it
 

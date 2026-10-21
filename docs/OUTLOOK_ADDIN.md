@@ -143,10 +143,15 @@ run`). Automating this for Windows is planned.
 
 ## Limits
 
-- Mail Triage cannot move messages through the add-in: Office.js has no move function, and the
-  legacy Exchange tokens that add-ins once used for EWS are turned off in Microsoft 365. Moving
-  will need either Microsoft Graph (`Mail.ReadWrite`, organization approval) or Outlook's own
-  *Sweep*/rules for recurring senders.
+- Mail Triage cannot move messages through the add-in, so `./triage apply` works with Apple
+  Mail only. Office.js has no move function (checked against the Mailbox 1.16 and preview
+  requirement sets, September 2026), and the legacy Exchange tokens that add-ins once used for
+  EWS are turned off in Microsoft 365. Moving needs either Microsoft Graph (`Mail.ReadWrite`
+  through nested app authentication, which needs an app registration and organization
+  approval) or Outlook's own *Sweep*/rules for recurring senders. The decisions and the folder
+  plan are in the report, so you can build such rules from them.
+- New Outlook for Mac supports Mailbox requirement sets up to 1.14, and reading *selected*
+  messages needs 1.15. That is why Outlook for Mac has auto-triage instead of batch triage.
 - It is not an automatic background scan of the whole mailbox; you select or browse. Fully
   automatic scanning of Microsoft 365 needs Graph (see
   [OUTLOOK_AUTH_INVESTIGATION.md](OUTLOOK_AUTH_INVESTIGATION.md)).

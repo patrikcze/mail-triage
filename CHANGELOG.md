@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **Moving mail into folders** (Apple Mail): `./triage apply` shows the plan and, after you
+  confirm, moves decided mail into its category folder. Missing folders are created inside the
+  same account. `--dry-run` only shows the plan, and `./triage undo [--all]` moves the last
+  apply (or all of them) back. Off until `[actions] enabled = true`.
+- `[actions] keep_in_place` (default `["personal", "work"]`): categories that never move.
+- Every move is journaled before it happens. A message moves only if it is still in the
+  mailbox where it was decided, was decided with the current settings, has a Message-ID
+  that Mail re-checks just before the move, and was not moved (or moved back) before.
+  Nothing is deleted, flagged or marked as read.
+
+### Changed
+
+- With `[actions] enabled = true`, settings are refused if a category or review folder is
+  outside `allowed_root`/`also_allowed` or is a Trash/Junk folder.
+- `connectors.base.Mover` is now `ensure_folder()` plus a batch `move()` that verifies
+  Message-IDs.
+
 ## 1.1.0 — 2026-10-21
 
 ### Added

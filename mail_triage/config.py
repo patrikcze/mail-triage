@@ -207,6 +207,21 @@ def _validate(raw: dict) -> Config:
     actions = raw["actions"]
     if not str(actions.get("allowed_root", "")).strip("/ "):
         raise ConfigError("actions.allowed_root must not be empty")
+    if not isinstance(actions.get("enabled"), bool):
+        raise ConfigError("actions.enabled must be true or false")
+    for key in ("also_allowed", "forbidden", "keep_in_place"):
+        if not isinstance(actions.get(key), list) or not all(isinstance(v, str) for v in actions[key]):
+            raise ConfigError(f"actions.{key} must be a list of names, e.g. [\"personal\"]")
+    if actions["enabled"]:
+        from .connectors.base import validate_destination
+        keep = set(actions["keep_in_place"])
+        targets = [(f"categories {c.name}.folder", c.folder) for c in categories if c.folder and c.name not in keep]
+        for where, folder in targets + [("policy.review_folder", str(policy["review_folder"]))]:
+            try:
+                validate_destination(folder, actions)
+            except ValueError as exc:
+                raise ConfigError(f"{where}: {exc}. Put it under actions.allowed_root, list it in "
+                                  "actions.also_allowed, or set folder = \"\"") from None
 
     return Config(tuple(categories), tuple(rules), model, instructions, policy, learning, privacy, actions)
 

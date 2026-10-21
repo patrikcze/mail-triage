@@ -70,7 +70,7 @@ def write(store: Store, config: Config, folder: Path, accounts: list[str] | None
     parts.append(f"<div class=card><b>{sources['memory'] + sources['rule'] + sources['teach']}</b>"
                  "decided without the model</div></div>")
     if plan:
-        parts.append("<h2>Folder plan <span class=mute>(preview — nothing is moved)</span></h2><table>")
+        parts.append("<h2>Folder plan <span class=mute>(<code>./triage apply</code> moves mail that is still in the scanned mailbox)</span></h2><table>")
         parts += [f"<tr><td>{e(folder)}</td><td>{n}</td></tr>" for folder, n in sorted(plan.items())]
         parts.append("</table>")
     for verdict in ("junk", "review", "keep"):
