@@ -4,7 +4,7 @@ The core engine (`engine.py`, `policy.py`, `store.py`, `rules.py`, `learning.py`
 change when you add a mail source or a model. You implement a small protocol and register it
 in `cli.py`.
 
-## A new mail source (Outlook, Microsoft Graph, IMAP, Gmail …)
+## A new mail source (Microsoft Graph, IMAP, Gmail …)
 
 Implement the `Connector` protocol from
 [`mail_triage/connectors/base.py`](../mail_triage/connectors/base.py):
@@ -28,17 +28,35 @@ Notes per platform:
 
 | Platform | Approach |
 | --- | --- |
-| **Outlook on Windows (classic)** | COM via `pywin32`: `Namespace("MAPI")`, `Folder.Items`. `PR_TRANSPORT_MESSAGE_HEADERS` gives headers; build the source from `MailItem` or save it as `.eml`. |
-| **New Outlook / Outlook for Mac / Microsoft 365** | Microsoft Graph with a public-client OAuth app (device-code flow), using the `Mail.Read` scope now and `Mail.ReadWrite` only once moving is enabled. |
-| **IMAP (any provider)** | `imaplib`: `FETCH (BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE MESSAGE-ID)])` to list, `BODY.PEEK[]` to fetch. `PEEK` keeps messages unread. |
+| **Outlook for Mac** | Experimental public JXA adapter in `connectors/outlook/macos.py`. Dictionary presence is insufficient: runtime discovery and an opt-in read probe must succeed. No live version is validated yet. |
+| **Outlook on Windows (classic)** | Experimental isolated `pywin32` worker in `outlook/windows.py`: current profile, stores, `GetTable/GetArray`, selected `GetItemFromID`. Transport headers + body normalized in memory. COM SaveAs does **not** offer EML. No Windows live validation yet. |
+| **New Outlook on Windows** | COM adapter unsupported. An approved Graph app is a separate potential integration, not assumed available. |
+| **Approved Graph** | Own public-client OAuth application, interactive PKCE, delegated `Mail.Read` and tenant consent/Conditional Access approval. Not implemented; no write scope today. |
+| **Approved IMAP** | Requires enabled protocol and authorized OAuth app. `BODY.PEEK` avoids Seen changes; UIDVALIDITY must be part of identity. Not implemented; not a consent bypass. |
 
-**The network guard.** These connectors must talk to a mail server, so the guard has to allow
-exactly that host. Add an explicit allow-list parameter to `install_network_guard()` holding
-the configured mail server(s) only. Do not disable the guard. Model servers stay
-loopback-only. Document the change in `docs/PRIVACY.md`.
+**Source and identity contracts.** `fetch_sources()` returns only requested IDs; disappeared
+items may be absent, but permission/timeouts/unsupported capabilities must raise a
+privacy-safe `ConnectorError`. Listing must not silently truncate or zip mismatched columns.
+`MessageInfo.identity_scope` is optional: legacy sources retain their old keys; native-scoped
+sources use adapter/store scope + account + mailbox + native ID, not RFC Message-ID alone.
+Set `headers_available=None` when metadata cannot establish header availability; junk memory
+then requires fetching evidence. Explicit rules/teachings are still user overrides.
+
+**Structured sources.** Reuse Outlook's small `normalize_source()` helper where appropriate.
+It preserves genuine transport headers, replaces only content/MIME headers, adds available
+sender/subject/Message-ID properties and records local provenance. Do not synthesize
+unsubscribe/authentication/bulk evidence. Missing headers cap model junk to review.
+
+**The network guard.** Native automation requires no Python network exception. Outlook/Mail
+sync independently, outside the guard. A future direct-network connector needs a separately
+authorized transport with narrow endpoint/port/method/TLS/redirect restrictions; model
+processes must remain loopback-only. Do not disable the guard or globally allow mail hosts
+for model processing. Document the new trust boundary before implementing it.
 
 Register the connector in `cli._connector()` (for example `--source graph`) and add a test with
 a fake transport, like `tests/helpers.FakeConnector`.
+See [OUTLOOK_CONNECTOR_DESIGN.md](OUTLOOK_CONNECTOR_DESIGN.md) for research and the opt-in
+live checklist. Never use another app's identity, browser sessions, tokens or private APIs.
 
 ## A new model backend (ONNX, OpenVINO, a Windows runtime …)
 
@@ -78,6 +96,9 @@ To implement `./triage apply`:
    `./triage undo [--run N]`, which moves journaled messages back.
 4. Keep the rule: **no delete, no trash, no flag changes**. `tests/test_privacy_safety.py`
    checks this.
+5. Require explicit authorization, re-resolve native identities, journal before execution,
+   validate both destinations and retry state, make retries idempotent and report failures.
+   Do not acquire write permissions while only the read connector exists.
 
 ## Ideas that fit the design
 

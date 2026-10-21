@@ -3,7 +3,9 @@
 - install_network_guard(): from then on this Python process can only open sockets to
   loopback addresses or Unix sockets, and can only resolve localhost names. Installed by every
   command that touches mail and by the model worker. Only `setup` (model download) runs
-  without it, and `setup` never reads mail.
+  without it; local source discovery follows guard installation and never reads messages.
+  External clients/processes (including Outlook and osascript) are outside this socket guard
+  and may synchronize normally; it is not a system firewall.
 - redact(): what the terminal shows in console = "redacted" mode.
 - private_dir() / private_file(): data folder 0700, files 0600 (owner only).
 

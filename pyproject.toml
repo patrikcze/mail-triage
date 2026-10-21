@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mail-triage"
-version = "1.0.0"
-description = "Local email triage with Laya decision models: for you vs. promo, marketing and spam. Nothing leaves your computer."
+version = "1.1.0"
+description = "Local email triage with Laya decision models and read-only mail connectors. No external AI processing."
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
@@ -13,11 +13,17 @@ requires-python = ">=3.11"
 # llama.cpp/Ollama run as separate local servers.
 dependencies = []
 
+[project.optional-dependencies]
+outlook-windows = ["pywin32>=306; sys_platform == 'win32'"]
+# Opt-in Microsoft Graph access probe (tools/graph_probe.py); not used by the core.
+graph = ["msal[broker]>=1.31,<2", "truststore>=0.9"]
+
 [project.scripts]
 mail-triage = "mail_triage.cli:main"
 
 [tool.setuptools]
-packages = ["mail_triage", "mail_triage.backends", "mail_triage.connectors"]
+packages = ["mail_triage", "mail_triage.addin", "mail_triage.backends", "mail_triage.connectors",
+            "mail_triage.connectors.outlook"]
 
 [tool.setuptools.package-data]
-mail_triage = ["default_config.toml"]
+mail_triage = ["default_config.toml", "addin/static/*"]

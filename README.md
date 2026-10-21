@@ -2,8 +2,8 @@
 
 **Mail Triage sorts the email already in your inbox into "for you", "to review" and "junk"**
 (promotions, newsletters, marketing, spam). A small AI model decides, and it runs **entirely on
-your computer**. No email, address or subject is ever sent to the internet. The program refuses
-network connections while it reads mail.
+your computer**. Classification never sends mail to an external AI service. Python/model
+connections are restricted to this computer; your mail client may still synchronize normally.
 
 It never deletes anything. Today it only **decides and shows you** what it would do, in a
 report. Moving mail into folders (`Laya/Promotions`, `Laya/Newsletters`, …) is planned and
@@ -41,6 +41,46 @@ cd path/to/mail-triage
 ./triage doctor         # check that everything works
 ./triage help           # all commands
 ```
+
+## Outlook
+
+### Outlook add-in (recommended)
+
+Works with **Outlook on the web**, **Outlook for Windows** and **new Outlook for Mac**, without any
+IT app registration or Microsoft Graph consent. The add-in runs inside Outlook and hands messages
+to Mail Triage **on this computer**; nothing in your mailbox is changed.
+
+```sh
+./triage addin install     # once: local certificate + background helper (macOS), opens Outlook's add-in page
+./triage addin status      # is the helper running?
+./triage addin uninstall   # remove helper and certificate
+```
+
+Then add `mail_triage/addin/static/manifest.xml` in Outlook (**My add-ins → Add a custom add-in →
+Add from file**). In Outlook on the web or Windows, select up to 100 messages and choose **Triage
+selection**. In Outlook for Mac, tick **Auto-triage** and go through the list with **↓**. Results
+land in the normal history and report. Full guide: **[docs/OUTLOOK_ADDIN.md](docs/OUTLOOK_ADDIN.md)**.
+
+### Other Outlook options (experimental)
+
+- **Scripting connector** (`--source outlook`): uses Outlook for Mac's public AppleScript/JXA
+  interface, or classic Outlook's COM interface on Windows (`pip install ".[outlook-windows]"`).
+  New Outlook for Mac exposes no script-visible accounts, so this connector does not work with
+  it. Details: [OUTLOOK_CONNECTOR_DESIGN.md](docs/OUTLOOK_CONNECTOR_DESIGN.md).
+
+  ```sh
+  ./triage doctor --source outlook                 # counts/capabilities only; no body reads
+  ./triage scan --source outlook --account USER --limit 20 --console counts --no-report
+  ```
+
+- **Microsoft Graph** (automatic background scans) needs an organization-approved app
+  registration with delegated `Mail.Read`. Only an opt-in access probe exists so far
+  (`tools/graph_probe.py`). See [OUTLOOK_AUTH_INVESTIGATION.md](docs/OUTLOOK_AUTH_INVESTIGATION.md)
+  for the options, typical blockers and an IT request template.
+- **Exported mail:** drag messages from Outlook into a folder and run `./triage scan --folder …`.
+
+Mail Triage never extracts browser cookies or tokens, never reuses another application's
+identity, and never switches Outlook modes to work around policy.
 
 ## What you'll see
 
@@ -122,14 +162,16 @@ address.
 
 ## Privacy
 
-- Mail is read, decided and remembered **on this computer only**. While reading mail, the
-  program blocks every network connection that is not to this computer, and so does the model
-  process. Only `setup` downloads the model, and `setup` never reads mail.
+- Classification runs **on this computer only**. The Python/model socket guard blocks
+  non-loopback connections. It is not a system firewall and does not restrict Apple Mail,
+  Outlook, osascript, COM or other external processes. Mail clients may sync normally.
+  Only `setup` downloads model files, before local source discovery; it never reads messages.
 - Your history (`history.sqlite`) and reports keep senders, subjects and decisions, never email
   bodies. They are readable by your user account only. Subjects can be switched off
   (`store_subjects = false`). Old entries are deleted after 365 days by default.
 - Erase it any time: `./triage forget --sender someone@example.com`, or `./triage forget --all`.
-- No telemetry, no accounts, no cloud.
+- No telemetry, no Mail Triage cloud account, no external AI. Corporate processing approval
+  is still required; local-only classification does not establish compliance by itself.
 
 Details for GDPR: [docs/PRIVACY.md](docs/PRIVACY.md).
 
@@ -142,9 +184,9 @@ the included demo mail.
 ./triage scan --folder tests/fixtures/demo --console full
 ```
 
-On Windows today this is the way to use it (`triage.bat scan --folder C:\path\to\export`). A
-direct Outlook / Microsoft 365 connection is planned. See
-[docs/EXTENDING.md](docs/EXTENDING.md).
+Exports are also the verified offline path on Windows
+(`triage.bat scan --folder C:\path\to\export`). The experimental classic COM adapter above
+needs live Windows validation before relying on it.
 
 ## Troubleshooting
 
@@ -153,6 +195,10 @@ direct Outlook / Microsoft 365 connection is planned. See
 | "needs Python 3.11 or newer" | Install Python 3.13 from python.org (step 1). |
 | `Triage.command` does nothing / "permission denied" | Some ZIP tools drop the "executable" mark. In Terminal, in this folder: `chmod +x triage Triage.command` |
 | "Mail access not allowed" | *System Settings › Privacy & Security › Automation › Terminal* → enable **Mail**. |
+| Outlook Automation permission denied | Enable your terminal's **Microsoft Outlook** Automation permission if company policy allows it; otherwise ask IT. |
+| Outlook exposes no script-visible accounts | The client/interface is not usable for this mailbox. A dictionary alone is insufficient. No token/database/browser workaround is attempted. |
+| Outlook doctor says UNVERIFIED | A metadata check is not a body-read check. With approval, use `--probe-read` on a test inbox; an empty inbox cannot validate body access. |
+| Outlook read state/mailbox changed | Stop other mailbox activity and retry a small sample; inspect read state independently. The adapter never resets flags. |
 | "Laya MLX is not installed yet" | Run `./triage setup`. |
 | "no model server answers" | Start `llama serve …` (see above), or use `backend = "auto"` on an Apple Silicon Mac. |
 | "settings: …" | The message names the line in `config.toml` to fix. `./triage doctor` re-checks. |
@@ -162,7 +208,8 @@ direct Outlook / Microsoft 365 connection is planned. See
 ## For developers
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the core engine, connectors and models fit together
-- [docs/EXTENDING.md](docs/EXTENDING.md): add Outlook / Microsoft Graph / IMAP, another model backend, or the move action
+- [docs/EXTENDING.md](docs/EXTENDING.md): connector contracts, future authorized APIs, another model backend, or the move action
+- [docs/OUTLOOK_CONNECTOR_DESIGN.md](docs/OUTLOOK_CONNECTOR_DESIGN.md): Outlook evidence, alternatives, privacy and live validation
 - Tests use synthetic mail only: `python3 -m unittest discover -s tests`
 - [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md): never attach real email to issues; report privacy problems privately
 

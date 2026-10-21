@@ -34,6 +34,8 @@ class MessageInfo:
     sender: str           # address only, e.g. "news@shop.example.cz"
     subject: str
     received: str         # ISO date or ""
+    identity_scope: str = ""  # opt-in native identity namespace; legacy sources leave empty
+    headers_available: bool | None = True  # None: fetch before junk memory; default preserves legacy shortcuts
 
 
 class ConnectorError(Exception):

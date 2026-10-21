@@ -160,6 +160,8 @@ def decide(config: Config, answers: dict, signals: dict, *, fluent: bool = True)
     verdict = ("junk" if p >= config.policy["junk_threshold"]
                else "review" if p >= config.policy["review_threshold"] else "keep")
     caps = []
+    if signals.get("headers_unavailable"):
+        caps.append("transport headers unavailable")
     # The models alone over-call automated mail as marketing (receipts, bank notices),
     # so junk needs the headers bulk senders are required to send.
     if not bulk_evidence:
